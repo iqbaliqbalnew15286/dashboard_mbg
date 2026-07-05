@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Mendefinisikan palet warna biru elegan khusus untuk tema mbg */
+@theme {
+    --color-mbg-50: #f0f9ff;
+    --color-mbg-100: #e0f2fe;
+    --color-mbg-500: #0ea5e9;
+    --color-mbg-600: #0284c7;
+    --color-mbg-800: #075985;
+    --color-mbg-900: #0c4a6e;
+}
+
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}

@@ -1,0 +1,29 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('rab_details', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('rab_id')->constrained('rabs')->onDelete('cascade');
+            $table->foreignId('supplier_id')->constrained('suppliers')->onDelete('cascade');
+            $table->foreignId('master_bahan_baku_id')->constrained('master_bahan_bakus')->onDelete('cascade');
+            
+            $table->decimal('qty', 12, 2);
+            $table->decimal('harga_satuan', 15, 2);
+            $table->decimal('subtotal', 15, 2);
+            
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('rab_details');
+    }
+};
