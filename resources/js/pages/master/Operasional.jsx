@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useForm } from '@inertiajs/react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useForm, router } from '@inertiajs/react';
 import {
     Plus, Edit2, Trash2, X, Database, Search,
     Wallet, ChevronDown, Loader2, CheckCircle2,
@@ -7,10 +7,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function OperasionalPage({ operasionals = [] }) {
+export default function OperasionalPage({ operasionals, filters, stats = { total_transaksi: 0, total_pagu: 0, total_bayar: 0 } }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(filters?.search || '');
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
@@ -21,7 +21,6 @@ export default function OperasionalPage({ operasionals = [] }) {
 
     const daftarSatuan = ['BULAN', 'HARI', 'MINGGU', 'TAHUN', 'KALI', 'ORANG', 'UNIT', 'PAKET', 'LITER', 'KWH'];
 
-    // STATE FORM INERTIA - Pastikan nama field sama persis dengan database
     const { data, setData, post, put, delete: destroy, reset, clearErrors, processing, errors } = useForm({
         kode_transaksi: '',
         nama_transaksi: '',
@@ -30,14 +29,7 @@ export default function OperasionalPage({ operasionals = [] }) {
         jumlah_bayar: ''
     });
 
-    const stats = useMemo(() => {
-        return {
-            total_transaksi: operasionals.length,
-            total_pagu: operasionals.reduce((sum, item) => sum + Number(item.pagu_awal || 0), 0),
-            total_bayar: operasionals.reduce((sum, item) => sum + Number(item.jumlah_bayar || 0), 0)
-        };
-    }, [operasionals]);
-
+    // Handle klik di luar dropdown satuan
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (satuanRef.current && !satuanRef.current.contains(event.target)) {
@@ -47,6 +39,20 @@ export default function OperasionalPage({ operasionals = [] }) {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
+
+    // Pencarian Server-Side Otomatis (Debounced agar tidak spam request)
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(() => {
+            if (searchQuery !== (filters?.search || '')) {
+                router.get('/master/operasional', { search: searchQuery }, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true
+                });
+            }
+        }, 500);
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchQuery, filters?.search]);
 
     const showToast = (message, type) => {
         setNotification({ message, type });
@@ -60,15 +66,6 @@ export default function OperasionalPage({ operasionals = [] }) {
         const rawValue = value.replace(/\D/g, ''); 
         setData(field, rawValue);
     };
-
-    const filteredData = useMemo(() => {
-        if (!searchQuery) return operasionals;
-        const lowerQuery = searchQuery.toLowerCase();
-        return operasionals.filter(item =>
-            (item.nama_transaksi || '').toLowerCase().includes(lowerQuery) ||
-            (item.kode_transaksi || '').toLowerCase().includes(lowerQuery)
-        );
-    }, [operasionals, searchQuery]);
 
     const openModal = (item = null) => {
         clearErrors();
@@ -94,7 +91,6 @@ export default function OperasionalPage({ operasionals = [] }) {
     const handleSubmit = (e) => {
         e.preventDefault();
 
-        // Validasi ekstra di sisi Frontend agar lebih aman
         if (!data.nama_transaksi) return showToast('Nama Transaksi wajib diisi!', 'error');
         if (!data.pagu_awal) return showToast('Pagu Awal wajib diisi!', 'error');
         if (!data.satuan) return showToast('Satuan wajib dipilih!', 'error');
@@ -107,9 +103,7 @@ export default function OperasionalPage({ operasionals = [] }) {
                 showToast(editingItem ? 'Data diperbarui!' : 'Data ditambahkan!', 'success'); 
                 reset(); 
             },
-            onError: (err) => {
-                showToast('Gagal menyimpan, periksa inputan Anda!', 'error');
-            }
+            onError: () => showToast('Gagal menyimpan, periksa inputan Anda!', 'error')
         };
 
         if (editingItem) {
@@ -134,7 +128,6 @@ export default function OperasionalPage({ operasionals = [] }) {
     return (
         <div className="w-full pb-10 font-['Plus_Jakarta_Sans',sans-serif] relative space-y-6">
             
-            {/* TOAST NOTIFICATION */}
             <AnimatePresence>
                 {notification && (
                     <motion.div
@@ -222,7 +215,7 @@ export default function OperasionalPage({ operasionals = [] }) {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 text-sm">
-                            {filteredData.length === 0 ? (
+                            {!operasionals || !operasionals.data || operasionals.data.length === 0 ? (
                                 <tr>
                                     <td colSpan="7" className="py-20 text-center text-slate-400">
                                         <Database className="mx-auto h-10 w-10 opacity-20 mb-3" />
@@ -230,9 +223,9 @@ export default function OperasionalPage({ operasionals = [] }) {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredData.map((item, index) => (
+                                operasionals.data.map((item, index) => (
                                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                                        <td className="px-8 py-5 font-bold text-slate-400">{index + 1}</td>
+                                        <td className="px-8 py-5 font-bold text-slate-400">{operasionals.from + index}</td>
                                         <td className="px-6 py-5 font-black text-blue-600">#{item.kode_transaksi}</td>
                                         <td className="px-6 py-5 font-bold text-slate-800">{item.nama_transaksi}</td>
                                         <td className="px-6 py-5 text-center">
@@ -252,9 +245,31 @@ export default function OperasionalPage({ operasionals = [] }) {
                         </tbody>
                     </table>
                 </div>
+                
+                {/* PAGINATION */}
+                {operasionals && operasionals.links && operasionals.data.length > 0 && (
+                    <div className="flex items-center justify-between px-8 py-4 bg-slate-50/50 border-t border-slate-100">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            Menampilkan {operasionals.from} - {operasionals.to} dari {operasionals.total}
+                        </span>
+                        <div className="flex gap-1">
+                            {operasionals.links.map((link, k) => (
+                                <button
+                                    key={k}
+                                    onClick={() => link.url && router.get(link.url, { search: searchQuery }, { preserveScroll: true })}
+                                    disabled={!link.url || link.active}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                        link.active ? 'bg-blue-600 text-white shadow-md' : !link.url ? 'text-slate-300 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                                    }`}
+                                    dangerouslySetInnerHTML={{ __html: link.label }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* MODAL FORM (TUNGGAL - Sudah Bebas Duplikat) */}
+            {/* MODAL FORM */}
             <AnimatePresence>
                 {isModalOpen && (
                     <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
@@ -285,7 +300,7 @@ export default function OperasionalPage({ operasionals = [] }) {
                                     <div>
                                         <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Nama Transaksi <span className="text-rose-500">*</span></label>
                                         <input
-                                            type="text" placeholder="Contoh: Listrik Bulanan" value={data.nama_transaksi} onChange={e => setData('nama_transaksi', e.target.value)}
+                                            type="text" placeholder="Contoh: Sewa Tempat" value={data.nama_transaksi} onChange={e => setData('nama_transaksi', e.target.value)}
                                             className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none focus:ring-4 font-bold text-sm transition-all ${errors.nama_transaksi ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/10' : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10'}`} 
                                             required
                                         />
@@ -391,7 +406,7 @@ export default function OperasionalPage({ operasionals = [] }) {
                 )}
             </AnimatePresence>
 
-            {/* MODAL HAPUS (TUNGGAL) */}
+            {/* MODAL HAPUS */}
             <AnimatePresence>
                 {isDeleteModalOpen && (
                     <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">

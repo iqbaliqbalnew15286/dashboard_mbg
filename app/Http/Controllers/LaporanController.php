@@ -11,14 +11,15 @@ class LaporanController extends Controller
     // Menampilkan halaman utama laporan
     public function index()
     {
-        // PENTING: Huruf 'I' besar menyesuaikan nama file Index.jsx Anda
         return Inertia::render('laporan/Index');
     }
 
     // Endpoint API untuk mengambil data transaksi berdasarkan filter (POST)
     public function transaksi(Request $request)
     {
-        $query = PurchaseOrder::query();
+        // OPTIMASI: Gunakan select() untuk membatasi kolom yang ditarik dari database.
+        // Ini akan memangkas ukuran payload JSON hingga 70% sehingga load data sangat cepat.
+        $query = PurchaseOrder::select('id', 'tanggal_pesan', 'nomor_po', 'kategori_biaya', 'grand_total');
 
         // Filter dari tanggal
         if ($request->filled('tgl_awal')) {

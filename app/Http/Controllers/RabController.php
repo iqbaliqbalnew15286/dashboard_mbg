@@ -19,14 +19,13 @@ class RabController extends Controller
 {
     public function index()
     {
-        // 1. Ambil data history RAB
-        $rabs = Rab::orderByDesc('tanggal')->get();
+        // 1. Ambil data history RAB dengan Paginasi (Super Ringan)
+        $rabs = Rab::orderByDesc('tanggal')->paginate(10);
         
         // 2. Hitung realisasi dari PO (Hanya yang statusnya selesai/approved)
         $realisasi_po = PurchaseOrder::where('status', 'selesai')->sum('grand_total');
         
-        // 3. Hitung realisasi operasional 
-        // FIX: Pengecekan skema agar tidak error jika kolom 'jumlah_bayar' belum dibuat di database
+        // 3. Hitung realisasi operasional langsung di level database
         $realisasi_ops = Schema::hasColumn('master_operasionals', 'jumlah_bayar') 
             ? MasterOperasional::sum('jumlah_bayar') 
             : 0;
@@ -36,7 +35,8 @@ class RabController extends Controller
 
         return Inertia::render('rab/Index', [
             'rabs'          => $rabs,
-            'operasionals'  => MasterOperasional::all(),
+            // Operasional biasanya datanya tidak ribuan (hanya kategori), aman pakai get()
+            'operasionals'  => MasterOperasional::orderByDesc('created_at')->get(),
             'realisasi_po'  => (float) $realisasi_po,
             'realisasi_ops' => (float) $realisasi_ops,
             'total_pagu'    => $total_pagu
@@ -113,7 +113,6 @@ class RabController extends Controller
                     'subtotal'             => $item['subtotal']
                 ]);
 
-                // Kumpulkan data array untuk pembuatan PO
                 $itemsPerSupplier[$item['supplier_id']][] = $item;
             }
 

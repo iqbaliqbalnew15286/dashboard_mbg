@@ -15,7 +15,6 @@ class PurchaseOrderController extends Controller
 {
     public function create()
     {
-        // Hanya mengirim data Bahan Baku dan Supplier dari Master Data
         return Inertia::render('po/Create', [
             'bahan_bakus'  => MasterBahanBaku::all(),
             'suppliers'    => Supplier::all(), 
@@ -24,7 +23,6 @@ class PurchaseOrderController extends Controller
 
     public function store(Request $request)
     {
-        // Validasi disesuaikan dengan HTML form
         $validated = $request->validate([
             'kategori_biaya'        => 'required|string',
             'nomor_po'              => 'nullable|string|unique:purchase_orders,nomor_po',
@@ -34,13 +32,12 @@ class PurchaseOrderController extends Controller
             'items'                 => 'required|array|min:1',
             'items.*.bahan_baku_id' => 'required|exists:master_bahan_bakus,id',
             'items.*.supplier_id'   => 'required|exists:suppliers,id',
-            'items.*.qty'           => 'required|numeric|min:0.01', // Mendukung desimal (misal 0.5 kg)
+            'items.*.qty'           => 'required|numeric|min:0.01',
             'items.*.harga_satuan'  => 'required|numeric|min:0',
             'items.*.subtotal'      => 'required|numeric|min:0',
         ]);
 
         DB::transaction(function () use ($validated) {
-            // Auto-generate nomor PO jika kosong/Otomatis
             $nomorPo = $validated['nomor_po'] ?? 'PO-MBG-' . date('Ymd') . '-' . strtoupper(Str::random(4));
 
             $po = PurchaseOrder::create([
@@ -67,12 +64,8 @@ class PurchaseOrderController extends Controller
         return redirect('/transaksi')->with('success', 'Purchase Order Berhasil Disimpan');
     }
     
-    // =========================================================================
-    // FITUR EDIT (Form Update PO)
-    // =========================================================================
     public function edit($id)
     {
-        // Cari PO berdasarkan ID beserta relasi detailnya
         $purchaseOrder = PurchaseOrder::with('details')->findOrFail($id);
 
         return Inertia::render('po/Edit', [
@@ -82,16 +75,12 @@ class PurchaseOrderController extends Controller
         ]);
     }
 
-    // =========================================================================
-    // FITUR UPDATE (Simpan Perubahan Edit)
-    // =========================================================================
     public function update(Request $request, $id)
     {
         $purchaseOrder = PurchaseOrder::findOrFail($id);
 
         $validated = $request->validate([
             'kategori_biaya'        => 'required|string',
-            // Pastikan pengecekan unique mengecualikan ID PO yang sedang diedit
             'nomor_po'              => 'nullable|string|unique:purchase_orders,nomor_po,' . $purchaseOrder->id,
             'tanggal_pesan'         => 'required|date',
             'tanggal_diberikan'     => 'nullable|date',
@@ -107,7 +96,6 @@ class PurchaseOrderController extends Controller
         DB::transaction(function () use ($validated, $purchaseOrder) {
             $nomorPo = $validated['nomor_po'] ?? $purchaseOrder->nomor_po;
 
-            // 1. Update data utama PO
             $purchaseOrder->update([
                 'nomor_po'          => $nomorPo,
                 'tanggal_pesan'     => $validated['tanggal_pesan'],
@@ -116,10 +104,8 @@ class PurchaseOrderController extends Controller
                 'grand_total'       => $validated['grand_total'],
             ]);
 
-            // 2. Hapus seluruh item lama (agar lebih aman dari duplikasi / selisih perhitungan)
             $purchaseOrder->details()->delete();
 
-            // 3. Masukkan item baru yang diedit
             foreach ($validated['items'] as $item) {
                 PoDetail::create([
                     'purchase_order_id'    => $purchaseOrder->id,
@@ -135,31 +121,68 @@ class PurchaseOrderController extends Controller
         return redirect('/transaksi')->with('success', 'Purchase Order Berhasil Diperbarui');
     }
 
-    // =========================================================================
-    // FITUR DELETE (Hapus PO)
-    // =========================================================================
     public function destroy($id)
     {
         $purchaseOrder = PurchaseOrder::findOrFail($id);
-        
-        // PO akan terhapus, dan jika di migration ada onDelete('cascade'), 
-        // maka po_details akan otomatis ikut terhapus.
         $purchaseOrder->delete();
 
         return redirect()->back()->with('success', 'Purchase Order berhasil dihapus dari sistem.');
     }
 
     // =========================================================================
-    // HALAMAN TRANSAKSI
+    // HALAMAN TRANSAKSI (Dioptimasi dengan Pagination)
     // =========================================================================
-    public function transaksi()
+    public function transaksi(Request $request)
     {
-        $transactions = PurchaseOrder::with('details.bahanBaku', 'details.supplier')
-                            ->orderByDesc('tanggal_pesan')
-                            ->get();
+        $query = PurchaseOrder::with(['details.bahanBaku', 'details.supplier']);
+
+        // Fitur Pencarian Real-Time
+        if ($request->has('search') && $request->search != '') {
+            $query->where('nomor_po', 'like', '%' . $request->search . '%')
+                  ->orWhere('kategori_biaya', 'like', '%' . $request->search . '%');
+        }
+
+        // Paginasi: Hanya ambil 10 data per halaman agar browser tidak nge-freeze
+        $transactions = $query->orderByDesc('tanggal_pesan')->paginate(10)->withQueryString();
                             
         return Inertia::render('po/Transaksi', [
-            'transactions' => $transactions
+            'transactions' => $transactions,
+            'filters'      => $request->only('search')
+        ]);
+    }
+
+    // =========================================================================
+    // API UNTUK STOK TERIMA (Ringan, khusus JSON)
+    // =========================================================================
+    public function searchPoForTerima($nomor_po)
+    {
+        $po = PurchaseOrder::with(['details.bahanBaku', 'details.supplier'])
+            ->where('nomor_po', $nomor_po)
+            ->first();
+
+        if (!$po) {
+            return response()->json(['message' => 'Data PO tidak ditemukan atau nomor salah.'], 404);
+        }
+
+        $items = $po->details->map(function($detail) {
+            return [
+                'bahan_baku_id' => $detail->master_bahan_baku_id,
+                'supplier_id'   => $detail->supplier_id,
+                'nama_bahan'    => $detail->bahanBaku->nama_barang ?? 'Barang Tidak Ditemukan',
+                'nama_supplier' => $detail->supplier->nama_perusahaan ?? '-',
+                'qty_pesan'     => $detail->qty,
+                'qty_terima'    => 0, 
+                'harga_satuan'  => $detail->harga_satuan,
+                'satuan'        => $detail->bahanBaku->satuan ?? '-'
+            ];
+        });
+
+        return response()->json([
+            'po' => [
+                'no_po' => $po->nomor_po,
+                'tgl_pesan' => $po->tanggal_pesan,
+            ],
+            'items' => $items
         ]);
     }
 }

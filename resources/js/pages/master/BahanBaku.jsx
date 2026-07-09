@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useForm } from '@inertiajs/react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useForm, router } from '@inertiajs/react';
 import {
     Plus, Edit2, Trash2, X, Database, Search,
     Boxes, ChevronDown, Loader2, CheckCircle2,
@@ -7,10 +7,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0, total_aset: 0 } }) {
+export default function BahanBaku({ bahan_bakus, filters, stats = { total_barang: 0, total_aset: 0 } }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(filters?.search || '');
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
@@ -43,6 +43,21 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Realtime search via Server-Side (Ringan)
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(() => {
+            if (searchQuery !== (filters?.search || '')) {
+                router.get('/master/bahan-baku', { search: searchQuery }, { 
+                    preserveState: true, 
+                    preserveScroll: true,
+                    replace: true 
+                });
+            }
+        }, 500);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchQuery, filters?.search]);
+
     // Toast helper
     const showToast = (message, type) => {
         setNotification({ message, type });
@@ -56,16 +71,6 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
         const rawValue = value.replace(/\D/g, '');
         setData(field, rawValue);
     };
-
-    // Realtime search filter
-    const filteredData = useMemo(() => {
-        if (!searchQuery) return bahan_bakus;
-        const lowerQuery = searchQuery.toLowerCase();
-        return bahan_bakus.filter(item =>
-            item.nama_barang.toLowerCase().includes(lowerQuery) ||
-            item.kode_barang.toLowerCase().includes(lowerQuery)
-        );
-    }, [bahan_bakus, searchQuery]);
 
     const openModal = (item = null) => {
         clearErrors();
@@ -148,7 +153,7 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
                 )}
             </AnimatePresence>
 
-            {/* HEADER — title kiri, search + button kanan */}
+            {/* HEADER */}
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800">Master Bahan Baku</h2>
@@ -212,7 +217,7 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 text-sm">
-                            {filteredData.length === 0 ? (
+                            {!bahan_bakus || !bahan_bakus.data || bahan_bakus.data.length === 0 ? (
                                 <tr>
                                     <td colSpan="7" className="py-20 text-center text-slate-400">
                                         <Database className="mx-auto h-10 w-10 opacity-20 mb-3" />
@@ -220,9 +225,9 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
                                     </td>
                                 </tr>
                             ) : (
-                                filteredData.map((item, index) => (
+                                bahan_bakus.data.map((item, index) => (
                                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                                        <td className="px-8 py-5 font-bold text-slate-400">{index + 1}</td>
+                                        <td className="px-8 py-5 font-bold text-slate-400">{bahan_bakus.from + index}</td>
                                         <td className="px-6 py-5 font-black text-blue-600">#{item.kode_barang}</td>
                                         <td className="px-6 py-5 font-bold text-slate-800">{item.nama_barang}</td>
                                         <td className="px-6 py-5 text-center">
@@ -252,6 +257,32 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
                         </tbody>
                     </table>
                 </div>
+
+                {/* PAGINATION */}
+                {bahan_bakus && bahan_bakus.links && bahan_bakus.data.length > 0 && (
+                    <div className="flex items-center justify-between px-8 py-4 bg-slate-50/50 border-t border-slate-100">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            Menampilkan {bahan_bakus.from} - {bahan_bakus.to} dari {bahan_bakus.total}
+                        </span>
+                        <div className="flex gap-1">
+                            {bahan_bakus.links.map((link, k) => (
+                                <button
+                                    key={k}
+                                    onClick={() => link.url && router.get(link.url, { search: searchQuery }, { preserveScroll: true })}
+                                    disabled={!link.url || link.active}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                        link.active 
+                                        ? 'bg-blue-600 text-white shadow-md' 
+                                        : !link.url 
+                                            ? 'text-slate-300 cursor-not-allowed' 
+                                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                                    }`}
+                                    dangerouslySetInnerHTML={{ __html: link.label }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* MODAL FORM */}
@@ -281,7 +312,6 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
                             </div>
 
                             <form onSubmit={handleSubmit} className="space-y-4">
-                                {/* Row 1: Kode + Nama */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Kode Barang</label>
@@ -307,7 +337,6 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
                                     </div>
                                 </div>
 
-                                {/* Row 2: Harga + Saldo */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Harga Beli Awal</label>
@@ -336,7 +365,6 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
                                     </div>
                                 </div>
 
-                                {/* Satuan — compact dropdown */}
                                 <div className="relative" ref={satuanRef}>
                                     <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Satuan</label>
                                     <div
@@ -364,7 +392,6 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
                                                 exit={{ opacity: 0, y: -6 }}
                                                 className="absolute z-50 top-full mt-1.5 w-full bg-white border border-slate-200 rounded-2xl shadow-xl p-4"
                                             >
-                                                {/* Preset satuan grid */}
                                                 <div className="grid grid-cols-4 gap-1.5 mb-3">
                                                     {daftarSatuan.map(s => (
                                                         <button
@@ -382,7 +409,6 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
                                                     ))}
                                                 </div>
 
-                                                {/* Custom / lainnya */}
                                                 <div className="border-t border-slate-100 pt-3">
                                                     <p className="text-[10px] font-black text-slate-400 mb-2 tracking-widest uppercase">Lainnya</p>
                                                     <div className="flex gap-2">
@@ -421,7 +447,6 @@ export default function BahanBaku({ bahan_bakus = [], stats = { total_barang: 0,
                                     </AnimatePresence>
                                 </div>
 
-                                {/* Submit row */}
                                 <div className="pt-2 flex gap-3">
                                     <button
                                         type="button"

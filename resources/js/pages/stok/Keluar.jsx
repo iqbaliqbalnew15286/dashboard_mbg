@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { router } from '@inertiajs/react';
+import axios from 'axios';
 import { 
   LogOut, Search, RotateCcw, Printer, Plus, 
   Calendar, Loader2, PackageMinus, CheckCircle2, 
   XCircle, Trash2, ShoppingCart, Save, X, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-// Sesuaikan import AdminLayout dengan path di project Anda
-import AdminLayout from '../../layouts/AdminLayout';
 
 export default function StokKeluarPage() {
   // State Riwayat Utama
@@ -30,11 +30,6 @@ export default function StokKeluarPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  const csrfToken = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-
   const showToast = (message, type) => {
     setNotification({ message, type });
     if (type !== 'loading') setTimeout(() => setNotification(null), 3000);
@@ -43,27 +38,19 @@ export default function StokKeluarPage() {
   const formatAngka = (n) => new Intl.NumberFormat('id-ID').format(n || 0);
 
   // ==========================================
-  // FETCH DATA RIWAYAT
+  // FETCH DATA RIWAYAT (Dioptimasi dengan Axios)
   // ==========================================
-  const buildQuery = () => {
-    const params = new URLSearchParams();
-    if (filterAwal) params.set('tgl_awal', filterAwal);
-    if (filterAkhir) params.set('tgl_akhir', filterAkhir);
-    if (search) params.set('q', search);
-    return params.toString();
-  };
-
   const loadRiwayat = async () => {
     setLoading(true);
     try {
-      const qs = buildQuery();
-      // Sesuaikan endpoint backend
-      const res = await fetch(`/stok/riwayat-keluar/data${qs ? `?${qs}` : ''}`, {
-        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+      const res = await axios.get('/stok/riwayat-keluar/data', {
+        params: {
+          tgl_awal: filterAwal || undefined,
+          tgl_akhir: filterAkhir || undefined,
+          q: search || undefined
+        }
       });
-      if (!res.ok) throw new Error('Gagal mengambil data riwayat');
-      const json = await res.json();
-      setRows(json.data || []);
+      setRows(res.data.data || []);
     } catch (e) {
       console.error(e);
       setRows([]);
@@ -77,12 +64,8 @@ export default function StokKeluarPage() {
   // ==========================================
   const loadBarangTersedia = async () => {
     try {
-      // Sesuaikan endpoint backend
-      const res = await fetch(`/stok/keluar/barang-tersedia`, {
-        headers: { 'Accept': 'application/json' }
-      });
-      const json = await res.json();
-      setBarangTersedia(json.data || []);
+      const res = await axios.get('/stok/keluar/barang-tersedia');
+      setBarangTersedia(res.data.data || []);
     } catch (e) {
       console.error('Gagal memuat daftar barang', e);
     }
@@ -97,7 +80,13 @@ export default function StokKeluarPage() {
     setFilterAwal('');
     setFilterAkhir('');
     setSearch('');
-    setTimeout(() => loadRiwayat(), 100);
+    setTimeout(() => {
+        setLoading(true);
+        axios.get('/stok/riwayat-keluar/data')
+            .then(res => setRows(res.data.data || []))
+            .catch(() => setRows([]))
+            .finally(() => setLoading(false));
+    }, 50);
   };
 
   const openModalTambah = () => {
@@ -120,11 +109,9 @@ export default function StokKeluarPage() {
       return showToast('Volume melebihi stok yang tersedia!', 'error');
     }
 
-    // Cek apakah sudah ada di keranjang
     const existsIndex = keranjang.findIndex(k => String(k.bahan_baku_id) === String(selectedBarangDetail.id));
     
     if (existsIndex >= 0) {
-      // Update qty jika sudah ada
       const newKeranjang = [...keranjang];
       const totalBaru = Number(newKeranjang[existsIndex].qty) + Number(qtyKeluar);
       
@@ -135,7 +122,6 @@ export default function StokKeluarPage() {
       newKeranjang[existsIndex].qty = totalBaru;
       setKeranjang(newKeranjang);
     } else {
-      // Tambah baru
       setKeranjang([...keranjang, {
         bahan_baku_id: selectedBarangDetail.id,
         nama_barang: selectedBarangDetail.nama,
@@ -145,7 +131,6 @@ export default function StokKeluarPage() {
       }]);
     }
 
-    // Reset input barang
     setSelectedBarangId('');
     setQtyKeluar('');
   };
@@ -157,51 +142,39 @@ export default function StokKeluarPage() {
   };
 
   // ==========================================
-  // SIMPAN KE BACKEND
+  // SIMPAN KE BACKEND (Dioptimasi dengan Inertia Router)
   // ==========================================
-  const simpanDataMassal = async () => {
+  const simpanDataMassal = () => {
     if (!tglKeluar) return showToast('Tanggal keluar harus diisi!', 'error');
     if (!petugas.trim()) return showToast('Nama petugas harus diisi!', 'error');
     if (keranjang.length === 0) return showToast('Daftar barang masih kosong!', 'error');
 
-    setIsSaving(true);
-    showToast('Menyimpan data pengeluaran...', 'loading');
+    const payload = {
+      tgl_keluar: tglKeluar,
+      petugas: petugas,
+      items: keranjang
+    };
 
-    try {
-      const payload = {
-        tgl_keluar: tglKeluar,
-        petugas: petugas,
-        items: keranjang
-      };
-
-      const res = await fetch('/stok/keluar', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-CSRF-TOKEN': csrfToken()
+    router.post('/stok/keluar', payload, {
+        onBefore: () => {
+            setIsSaving(true);
+            showToast('Menyimpan data pengeluaran...', 'loading');
         },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) throw new Error('Gagal menyimpan pengeluaran barang.');
-
-      showToast('Barang keluar berhasil dicatat!', 'success');
-      
-      // Reset & Tutup Modal
-      setIsModalOpen(false);
-      setKeranjang([]);
-      setPetugas('');
-      loadRiwayat(); // Refresh data riwayat
-    } catch (err) {
-      showToast(err.message || 'Terjadi kesalahan sistem.', 'error');
-    } finally {
-      setIsSaving(false);
-    }
+        onSuccess: () => {
+            showToast('Barang keluar berhasil dicatat!', 'success');
+            setIsModalOpen(false);
+            setKeranjang([]);
+            setPetugas('');
+            loadRiwayat(); 
+        },
+        onError: () => {
+            showToast('Gagal menyimpan pengeluaran barang. Periksa inputan Anda.', 'error');
+        },
+        onFinish: () => setIsSaving(false)
+    });
   };
 
   return (
-    
       <div className="w-full pb-10 font-['Plus_Jakarta_Sans',sans-serif] space-y-6">
         
         {/* TOAST NOTIFICATION */}
@@ -222,23 +195,20 @@ export default function StokKeluarPage() {
           )}
         </AnimatePresence>
 
-        {/* HEADER */}
-        <div className="bg-white p-8 rounded-[2rem] border border-slate-200/60 shadow-sm flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center shrink-0">
-              <LogOut size={28} />
-            </div>
+        {/* HEADER - Disesuaikan dengan desain yang seragam dan simpel */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div>
-              <h1 className="text-2xl font-black text-slate-800">Barang Keluar</h1>
-              <p className="text-sm text-slate-500 font-medium mt-1">Kelola dan catat pengeluaran stok barang dari gudang.</p>
+                <h2 className="text-2xl font-bold text-slate-800">Barang Keluar</h2>
+                <p className="text-slate-500 text-sm mt-1">Kelola dan catat pengeluaran stok barang dari gudang.</p>
             </div>
-          </div>
-          <button 
-            onClick={openModalTambah}
-            className="px-6 py-3.5 bg-rose-600 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-rose-700 transition-colors shadow-lg shadow-rose-600/30 flex items-center gap-2"
-          >
-            <Plus size={18} /> Input Barang Keluar
-          </button>
+            <div className="flex gap-3 w-full lg:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+                <button 
+                  onClick={openModalTambah}
+                  className="w-full lg:w-auto bg-rose-600 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-md shrink-0"
+                >
+                  <Plus size={18} /> Input Barang Keluar
+                </button>
+            </div>
         </div>
 
         {/* FILTER & PENCARIAN */}
@@ -566,7 +536,7 @@ export default function StokKeluarPage() {
                       className="px-8 py-3.5 bg-rose-600 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/30 disabled:opacity-50 disabled:shadow-none flex items-center gap-2"
                     >
                       {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
-                      Simpan Semua Pengeluaran
+                      Simpan Pengeluaran
                     </button>
                   </div>
                 </div>
@@ -577,6 +547,5 @@ export default function StokKeluarPage() {
         </AnimatePresence>
 
       </div>
-    
   );
 }

@@ -9,10 +9,31 @@ use Illuminate\Support\Str;
 
 class MasterOperasionalController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        // Paginasi & Pencarian Super Ringan di sisi Server
+        $query = MasterOperasional::query();
+
+        if ($request->has('search') && $request->search != '') {
+            $query->where('nama_transaksi', 'like', '%' . $request->search . '%')
+                  ->orWhere('kode_transaksi', 'like', '%' . $request->search . '%');
+        }
+
+        $operasionals = $query->orderByDesc('created_at')->paginate(10)->withQueryString();
+
+        // Kalkulasi di level Database (Tidak membebani RAM PHP)
+        $totalTransaksi = MasterOperasional::count();
+        $totalPagu = MasterOperasional::sum('pagu_awal');
+        $totalBayar = MasterOperasional::sum('jumlah_bayar');
+
         return Inertia::render('master/operasional/Index', [
-            'operasionals' => MasterOperasional::orderByDesc('created_at')->get()
+            'operasionals' => $operasionals,
+            'filters'      => $request->only('search'),
+            'stats'        => [
+                'total_transaksi' => $totalTransaksi,
+                'total_pagu'      => (int) $totalPagu,
+                'total_bayar'     => (int) $totalBayar
+            ]
         ]);
     }
 

@@ -10,21 +10,24 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
+        // Akun Super Admin (Bisa tambah/hapus admin lain)
         User::updateOrCreate(
-            ['email' => 'admin@mbginternal.com'],
+            ['email' => 'superadmin@mbginternal.com'],
             [
-                'name' => 'MBG Internal Admin',
+                'name' => 'Super Administrator',
                 'password' => Hash::make('admin123'),
-                'role' => 'admin',
+                'role' => 'superadmin',
+                'last_seen' => now(), // Simulasi sedang online
             ]
         );
 
+        // Akun Admin Biasa (Hanya bisa melihat)
         User::updateOrCreate(
-            ['email' => 'kasir@mbginternal.com'],
+            ['email' => 'admin@mbginternal.com'],
             [
-                'name' => 'Kasir Shift 1',
-                'password' => Hash::make('kasir123'),
-                'role' => 'kasir',
+                'name' => 'Admin Operasional',
+                'password' => Hash::make('admin123'),
+                'role' => 'admin',
             ]
         );
     }

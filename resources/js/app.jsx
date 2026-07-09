@@ -6,8 +6,8 @@ import { createRoot } from 'react-dom/client';
 import { createInertiaApp } from '@inertiajs/react';
 import AdminLayout from './layouts/AdminLayout';
 
-// Eager load semua halaman agar navigasi instan tanpa jeda download
-const pages = import.meta.glob('./pages/**/*.jsx', { eager: true });
+// Hapus eager: true untuk mengaktifkan Lazy Loading (memori lebih ringan)
+const pages = import.meta.glob('./pages/**/*.jsx');
 
 // MEMBUAT LOOKUP TABLE (Solusi untuk Error Page Not Found)
 // Mengubah semua path menjadi huruf kecil agar case-insensitive
@@ -24,13 +24,11 @@ for (const path in pages) {
 createInertiaApp({
     title: (title) => `${title} - MBG Internal`,
     
-        resolve: (name) => {
+    resolve: (name) => {
         // Normalisasi nama yang dipanggil controller menjadi huruf kecil juga
-        // Inertia biasanya mengirim nama seperti "master/operasional/Index" (huruf besar kecil bisa bervariasi)
-        // Kita normalisasi agar pencarian aman.
         const normalizedName = name.toLowerCase();
 
-    // Cari halaman di lookup table
+        // Cari halaman di lookup table
         let page = pageLookup[normalizedName];
 
         // Fallback: perbaiki variasi path case/format Inertia
@@ -50,8 +48,6 @@ createInertiaApp({
             }
         }
 
-
-
         if (!page) {
             throw new Error(`Page not found: ${name} (dicari sebagai: ${normalizedName})`);
         }
@@ -59,10 +55,14 @@ createInertiaApp({
         // Persistent Layout agar sidebar tidak berkedip
         const isAuthPage = normalizedName.includes('auth') || normalizedName.includes('login');
         if (!isAuthPage) {
-            page.default.layout = page.default.layout || ((pageComponent) => <AdminLayout>{pageComponent}</AdminLayout>);
+            // Promise handling untuk lazy load di Vite
+            return page().then((module) => {
+                module.default.layout = module.default.layout || ((pageComponent) => <AdminLayout>{pageComponent}</AdminLayout>);
+                return module;
+            });
         }
 
-        return page;
+        return page();
     },
     
     setup({ el, App, props }) {

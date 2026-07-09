@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { usePage, router } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, FileEdit, RotateCcw, Search, Save, X, Printer } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Search, Save, X, Printer } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 // Jika Anda menggunakan AdminLayout, uncomment baris di bawah dan bungkus return dengan <AdminLayout>
@@ -89,20 +89,24 @@ export default function PoCreate() {
   };
 
   return (
-    <div className="space-y-6 pb-10 font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="w-full pb-10 font-['Plus_Jakarta_Sans',sans-serif] relative space-y-6">
       <Toaster position="top-right" />
       
-      {/* HEADER FORM */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-8 rounded-[2rem] border border-slate-200/60 shadow-sm">
+      {/* HEADER FORM - Disesuaikan dengan desain Bahan Baku (Simple) */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <FileEdit className="text-blue-600" size={28}/> Input Purchase Order (PO)
-          </h1>
-          <p className="text-sm text-slate-500 font-medium mt-1">Dokumentasi pembuatan dan pengajuan berkas manifest PO internal.</p>
+          <h2 className="text-2xl font-bold text-slate-800">Input Purchase Order (PO)</h2>
+          <p className="text-slate-500 text-sm mt-1">Dokumentasi pembuatan dan pengajuan berkas manifest PO internal.</p>
         </div>
-        <button type="button" onClick={resetFormPO} className="px-5 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 flex items-center gap-2 transition-colors">
-          <RotateCcw size={16} /> Reset Form
-        </button>
+        <div className="flex gap-3 w-full lg:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+          <button 
+            type="button" 
+            onClick={resetFormPO} 
+            className="w-full lg:w-auto bg-slate-100 text-slate-600 px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 hover:text-slate-900 transition-all flex items-center justify-center gap-2"
+          >
+            <RotateCcw size={18} /> Reset Form
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleFormSubmit} className="space-y-6">

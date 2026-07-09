@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
 import { 
   Boxes, Search, RotateCcw, Printer, Calendar, 
   Loader2, PackageSearch, Eye, EyeOff, TrendingUp,
   ArrowUpRight, ArrowDownRight, DollarSign
 } from 'lucide-react';
-// Sesuaikan import AdminLayout dengan path di project Anda
-import AdminLayout from '../../layouts/AdminLayout';
 
 export default function StokRekapPage() {
   const [rows, setRows] = useState([]);
@@ -17,38 +16,24 @@ export default function StokRekapPage() {
   const [search, setSearch] = useState('');
   const [hideEmpty, setHideEmpty] = useState(false);
 
-  const csrfToken = () => {
-    const el = document.querySelector('meta[name="csrf-token"]');
-    return el ? el.getAttribute('content') : '';
-  };
-
   const formatRp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
   const formatAngka = (n) => new Intl.NumberFormat('id-ID').format(n || 0);
 
-  const buildQuery = () => {
-    const params = new URLSearchParams();
-    if (filterAwal) params.set('tgl_awal', filterAwal);
-    if (filterAkhir) params.set('tgl_akhir', filterAkhir);
-    if (search) params.set('q', search);
-    params.set('hide_empty', hideEmpty ? 'true' : 'false');
-    return params.toString();
-  };
-
+  // ==========================================
+  // FETCH DATA REKAP (Dioptimasi dengan Axios)
+  // ==========================================
   const loadData = async () => {
     setLoading(true);
     try {
-      const qs = buildQuery();
-      // Endpoint disesuaikan dengan route backend mbg Anda
-      const res = await fetch(`/stok/rekap-stok/data${qs ? `?${qs}` : ''}`, {
-        headers: {
-          'Accept': 'application/json',
-          'X-CSRF-TOKEN': csrfToken(),
-        },
+      const res = await axios.get('/stok/rekap-stok/data', {
+        params: {
+          tgl_awal: filterAwal || undefined,
+          tgl_akhir: filterAkhir || undefined,
+          q: search || undefined,
+          hide_empty: hideEmpty ? 'true' : 'false'
+        }
       });
-      if (!res.ok) throw new Error('Gagal memuat rekap stok');
-      
-      const json = await res.json();
-      setRows(json.data || []);
+      setRows(res.data.data || []);
     } catch (e) {
       console.error(e);
       setRows([]);
@@ -57,18 +42,28 @@ export default function StokRekapPage() {
     }
   };
 
-  // Triger reload otomatis ketika toggle sembunyikan data kosong di-klik
+  // Pencarian Server-Side Otomatis (Debounced)
   useEffect(() => {
-    loadData();
+    const delayDebounceFn = setTimeout(() => {
+      loadData();
+    }, 500);
+    return () => clearTimeout(delayDebounceFn);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hideEmpty]);
+  }, [search, filterAwal, filterAkhir, hideEmpty]);
 
   const handleResetFilter = () => {
     setFilterAwal('');
     setFilterAkhir('');
     setSearch('');
     setHideEmpty(false);
-    setTimeout(() => loadData(), 100);
+    
+    setTimeout(() => {
+      setLoading(true);
+      axios.get('/stok/rekap-stok/data')
+        .then(res => setRows(res.data.data || []))
+        .catch(() => setRows([]))
+        .finally(() => setLoading(false));
+    }, 50);
   };
 
   // ==========================================
@@ -88,49 +83,59 @@ export default function StokRekapPage() {
   return (
       <div className="w-full pb-10 font-['Plus_Jakarta_Sans',sans-serif] space-y-6">
         
-        {/* HEADER */}
-        <div className="bg-white p-8 rounded-[2rem] border border-slate-200/60 shadow-sm flex items-center gap-4">
-          <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
-            <Boxes size={28} />
+        {/* HEADER (Desain Flat Modern) */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
+              <Boxes size={28} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Rekapitulasi Stok Gudang</h1>
+              <p className="text-slate-500 text-sm mt-1">Laporan mutasi persediaan mencakup saldo, barang masuk, keluar, dan nilai aset.</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-slate-800">Rekapitulasi Stok Gudang</h1>
-            <p className="text-sm text-slate-500 font-medium mt-1">Laporan mutasi rekap persediaan barang mencakup saldo awal, barang masuk, keluar, dan nilai aset kuantitas.</p>
+          <div className="flex gap-2 w-full lg:w-auto">
+            <button 
+              onClick={() => window.print()} 
+              className="w-full lg:w-auto px-6 py-3.5 bg-blue-600 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-900 transition-colors shadow-md flex items-center justify-center gap-2"
+            >
+              <Printer size={16} /> Cetak Laporan
+            </button>
           </div>
         </div>
 
         {/* SUMMARY CARDS STATISTIK */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/60 shadow-sm flex items-center justify-between">
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm flex items-center justify-between">
             <div>
               <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Total Mutasi Masuk</span>
-              <span className="text-xl font-black text-slate-800 mt-1 block">{formatAngka(stats.masuk)}</span>
+              <span className="text-2xl font-black text-slate-800 mt-1 block">{formatAngka(stats.masuk)}</span>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><ArrowUpRight size={20} /></div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><ArrowUpRight size={24} /></div>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/60 shadow-sm flex items-center justify-between">
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm flex items-center justify-between">
             <div>
               <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Total Mutasi Keluar</span>
-              <span className="text-xl font-black text-slate-800 mt-1 block">{formatAngka(stats.keluar)}</span>
+              <span className="text-2xl font-black text-slate-800 mt-1 block">{formatAngka(stats.keluar)}</span>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><ArrowDownRight size={20} /></div>
+            <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><ArrowDownRight size={24} /></div>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/60 shadow-sm flex items-center justify-between">
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm flex items-center justify-between">
             <div>
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Total Saldo Akhir Fisik</span>
-              <span className="text-xl font-black text-slate-800 mt-1 block">{formatAngka(stats.saldoAkhir)}</span>
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Total Saldo Fisik</span>
+              <span className="text-2xl font-black text-slate-800 mt-1 block">{formatAngka(stats.saldoAkhir)}</span>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><TrendingUp size={20} /></div>
+            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><TrendingUp size={24} /></div>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/60 shadow-sm flex items-center justify-between">
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-200/60 shadow-sm flex items-center justify-between">
             <div>
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Total Estimasi Nilai Aset</span>
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Total Nilai Aset</span>
               <span className="text-xl font-black text-emerald-600 mt-1 block">{formatRp(stats.totalNilaiRp)}</span>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><DollarSign size={20} /></div>
+            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><DollarSign size={24} /></div>
           </div>
         </div>
 
@@ -147,7 +152,7 @@ export default function StokRekapPage() {
                   <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="date"
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 rounded-xl py-3 pl-10 pr-4 text-sm font-bold outline-none transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 rounded-xl py-3 pl-10 pr-4 text-sm font-bold outline-none transition-all focus:ring-4 focus:ring-blue-500/10"
                     value={filterAwal}
                     onChange={(e) => setFilterAwal(e.target.value)}
                   />
@@ -159,7 +164,7 @@ export default function StokRekapPage() {
                   <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="date"
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 rounded-xl py-3 pl-10 pr-4 text-sm font-bold outline-none transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 rounded-xl py-3 pl-10 pr-4 text-sm font-bold outline-none transition-all focus:ring-4 focus:ring-blue-500/10"
                     value={filterAkhir}
                     onChange={(e) => setFilterAkhir(e.target.value)}
                   />
@@ -174,37 +179,32 @@ export default function StokRekapPage() {
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 rounded-xl py-3 pl-10 pr-4 text-sm font-bold outline-none transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 rounded-xl py-3 pl-10 pr-4 text-sm font-bold outline-none transition-all focus:ring-4 focus:ring-blue-500/10"
                   placeholder="Cari Kode Barang atau Nama..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && loadData()}
                 />
               </div>
             </div>
 
-            {/* Switch Toggle State Sembunyikan Data Kosong */}
-            <div className="w-full xl:w-auto">
+            {/* Actions Button */}
+            <div className="flex gap-2 w-full xl:w-auto">
               <button
                 type="button"
                 onClick={() => setHideEmpty(!hideEmpty)}
-                className={`w-full xl:w-auto px-4 py-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all ${
+                className={`p-3.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all ${
                   hideEmpty 
                     ? 'bg-amber-50 border-amber-300 text-amber-700 shadow-inner' 
                     : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                 }`}
+                title="Sembunyikan Stok Kosong"
               >
                 {hideEmpty ? <EyeOff size={16} /> : <Eye size={16} />}
-                <span className="text-nowrap">Sembunyikan Kosong</span>
               </button>
-            </div>
-
-            {/* Actions Button */}
-            <div className="flex gap-2 w-full xl:w-auto">
               <button 
                 onClick={loadData} 
                 disabled={loading}
-                className="flex-1 xl:flex-none p-3.5 bg-blue-600 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-900 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 shadow-md shadow-blue-600/20"
+                className="flex-1 xl:flex-none p-3.5 bg-blue-600 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 shadow-md shadow-blue-600/20"
               >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} Cari
               </button>
@@ -215,29 +215,23 @@ export default function StokRekapPage() {
               >
                 <RotateCcw size={16} />
               </button>
-              <button 
-                onClick={() => window.print()} 
-                className="flex-1 xl:flex-none p-3.5 bg-emerald-600 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20"
-              >
-                <Printer size={16} /> Cetak
-              </button>
             </div>
             
           </div>
         </div>
 
         {/* REKAP TABLE BOX */}
-        <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-sm overflow-hidden print:shadow-none print:border-none">
+        <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-sm overflow-hidden print:shadow-none print:border-none print:rounded-none">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-900 text-[10px] font-black text-white uppercase tracking-widest border-b border-slate-100">
+              <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 print:bg-slate-100 print:text-black">
                 <tr>
                   <th className="px-6 py-5 w-28 text-center">Kode</th>
                   <th className="px-6 py-5 min-w-[200px]">Nama Barang</th>
-                  <th className="px-5 py-5 text-center bg-slate-800">Saldo Awal</th>
-                  <th className="px-5 py-5 text-center bg-emerald-950 text-emerald-400">Masuk</th>
-                  <th className="px-5 py-5 text-center bg-rose-950 text-rose-400">Keluar</th>
-                  <th className="px-5 py-5 text-center bg-amber-950 text-amber-400">Saldo Akhir</th>
+                  <th className="px-5 py-5 text-center">Saldo Awal</th>
+                  <th className="px-5 py-5 text-center text-emerald-600 print:text-black">Masuk</th>
+                  <th className="px-5 py-5 text-center text-rose-600 print:text-black">Keluar</th>
+                  <th className="px-5 py-5 text-center text-amber-600 print:text-black">Saldo Akhir</th>
                   <th className="px-6 py-5 text-right w-44">Jumlah (Rp)</th>
                 </tr>
               </thead>
@@ -259,14 +253,14 @@ export default function StokRekapPage() {
                   </tr>
                 ) : (
                   rows.map((r, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors align-middle">
-                      <td className="px-6 py-4 text-center font-black text-xs text-slate-400 whitespace-nowrap bg-slate-50/40">{r.kode || '-'}</td>
-                      <td className="px-6 py-4 font-black text-slate-800">{r.nama || '-'}</td>
-                      <td className="px-5 py-4 text-center font-bold text-slate-600 bg-slate-50/20">{formatAngka(r.saldo_awal)}</td>
-                      <td className="px-5 py-4 text-center font-black text-emerald-600 bg-emerald-50/10">{formatAngka(r.masuk)}</td>
-                      <td className="px-5 py-4 text-center font-black text-rose-600 bg-rose-50/10">{formatAngka(r.keluar)}</td>
-                      <td className="px-5 py-4 text-center font-black text-amber-700 bg-amber-50/30">{formatAngka(r.saldo_akhir)}</td>
-                      <td className="px-6 py-4 text-right font-black text-slate-700 bg-slate-50/40">{formatRp(r.jumlah_rp)}</td>
+                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors align-middle print:text-black">
+                      <td className="px-6 py-4 text-center font-bold text-slate-400 whitespace-nowrap">{r.kode || '-'}</td>
+                      <td className="px-6 py-4 font-black text-slate-800 print:text-black">{r.nama || '-'}</td>
+                      <td className="px-5 py-4 text-center font-bold text-slate-600 print:text-black">{formatAngka(r.saldo_awal)}</td>
+                      <td className="px-5 py-4 text-center font-black text-emerald-600 bg-emerald-50/30 print:bg-transparent print:text-black">{formatAngka(r.masuk)}</td>
+                      <td className="px-5 py-4 text-center font-black text-rose-600 bg-rose-50/30 print:bg-transparent print:text-black">{formatAngka(r.keluar)}</td>
+                      <td className="px-5 py-4 text-center font-black text-amber-700 bg-amber-50/30 print:bg-transparent print:text-black">{formatAngka(r.saldo_akhir)}</td>
+                      <td className="px-6 py-4 text-right font-black text-slate-700 bg-slate-50/40 print:bg-transparent print:text-black">{formatRp(r.jumlah_rp)}</td>
                     </tr>
                   ))
                 )}
@@ -274,24 +268,24 @@ export default function StokRekapPage() {
               
               {/* REKAP TOTAL FOOTER */}
               {rows.length > 0 && (
-                <tfoot className="bg-slate-900 border-t border-slate-800 text-white font-black">
+                <tfoot className="bg-slate-50 border-t border-slate-200 print:bg-transparent">
                   <tr className="align-middle">
-                    <td colSpan={2} className="px-6 py-5 text-right font-black text-xs uppercase tracking-widest text-slate-400">
+                    <td colSpan={2} className="px-6 py-5 text-right font-black text-xs uppercase tracking-widest text-slate-400 print:text-black">
                       TOTAL REKAPITULASI
                     </td>
-                    <td className="px-5 py-5 text-center text-slate-300 font-bold bg-slate-800/50">
+                    <td className="px-5 py-5 text-center text-slate-500 font-bold print:text-black">
                       {formatAngka(stats.saldoAwal)}
                     </td>
-                    <td className="px-5 py-5 text-center text-emerald-400 bg-emerald-950/40">
+                    <td className="px-5 py-5 text-center font-black text-emerald-600 print:text-black">
                       {formatAngka(stats.masuk)}
                     </td>
-                    <td className="px-5 py-5 text-center text-rose-400 bg-rose-950/40">
+                    <td className="px-5 py-5 text-center font-black text-rose-600 print:text-black">
                       {formatAngka(stats.keluar)}
                     </td>
-                    <td className="px-5 py-5 text-center text-amber-400 bg-amber-950/40">
+                    <td className="px-5 py-5 text-center font-black text-amber-600 print:text-black">
                       {formatAngka(stats.saldoAkhir)}
                     </td>
-                    <td className="px-6 py-5 text-right text-emerald-400 bg-slate-800/30">
+                    <td className="px-6 py-5 text-right font-black text-slate-800 print:text-black">
                       {formatRp(stats.totalNilaiRp)}
                     </td>
                   </tr>
@@ -311,12 +305,11 @@ export default function StokRekapPage() {
             .bg-white { box-shadow: none !important; border: none !important; }
             table { border: 1px solid #000 !important; width: 100% !important; border-collapse: collapse !important; }
             th, td { border: 1px solid #000 !important; padding: 10px 6px !important; color: #000 !important; background: transparent !important; }
-            thead th { background-color: #9bc2e6 !important; color: #000 !important; font-weight: bold !important; text-align: center !important; }
+            thead th { background-color: #f8fafc !important; color: #000 !important; font-weight: bold !important; text-align: center !important; }
             tfoot tr td { background-color: #f2f2f2 !important; color: #000 !important; font-weight: bold !important; }
           }
         `}} />
 
       </div>
-    
   );
 }

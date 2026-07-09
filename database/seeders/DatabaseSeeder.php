@@ -12,11 +12,11 @@ class DatabaseSeeder extends Seeder
         $this->call([
             // 1. Data Utama/Master dulu (Tidak punya Foreign Key atau Foreign Key sudah ada)
             UserSeeder::class,
-           
             MasterBahanBakuSeeder::class,
+            MasterSupplierSeeder::class,
+            MasterOperasionalSeeder::class,
             
             // 2. Data Transaksi Induk (Purchase Order)
-           
             
             // 3. Data Transaksi Anak (Tergantung pada PO)
             StockMutationSeeder::class, 

@@ -12,52 +12,89 @@ class UserController extends Controller
 {
     public function index()
     {
+        // 1. Update status 'last_seen' pengguna yang sedang login saat ini
+        if (auth()->check()) {
+            auth()->user()->update(['last_seen' => now()]);
+        }
+
+        $users = User::latest()->get();
+        $onlineThreshold = now()->subMinutes(5); // Aktif dalam 5 menit terakhir dianggap Online
+
         return Inertia::render('User', [
-            'users' => User::latest()->get(),
+            'users' => $users,
+            'stats' => [
+                'total_akun' => $users->count(),
+                'total_superadmin' => $users->where('role', 'superadmin')->count(),
+                'total_online' => $users->where('last_seen', '>=', $onlineThreshold)->count(),
+            ]
         ]);
     }
 
     public function store(Request $request)
     {
+        // Otorisasi: Hanya superadmin yang boleh menambah admin
+        if (auth()->user()->role !== 'superadmin') {
+            return back()->withErrors(['message' => 'Akses Ditolak: Hanya Super Admin yang dapat menambahkan pengguna.']);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:6'],
-            'role' => ['required', Rule::in(['admin', 'kasir'])],
+            'role' => ['required', Rule::in(['superadmin', 'admin'])],
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
 
         User::create($validated);
 
-        return back()->with('success', 'Pengguna berhasil ditambahkan.');
+        return back()->with('success', 'Pengguna baru berhasil ditambahkan.');
     }
 
     public function update(Request $request, User $user)
     {
-        $validated = $request->validate([
+        $currentUser = auth()->user();
+
+        // Otorisasi Dinamis:
+        // - Superadmin bisa mengedit siapa saja.
+        // - Admin hanya bisa mengedit akunnya sendiri.
+        if ($currentUser->role !== 'superadmin' && $currentUser->id !== $user->id) {
+            return back()->withErrors(['message' => 'Akses Ditolak: Anda hanya diizinkan mengubah data profil Anda sendiri.']);
+        }
+
+        $rules = [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'password' => ['nullable', 'string', 'min:6'], // Boleh kosong jika tidak ingin ganti password
-            'role' => ['required', Rule::in(['admin', 'kasir'])],
-        ]);
+            'password' => ['nullable', 'string', 'min:6'],
+        ];
+
+        // Hak ubah role HANYA diberikan jika yang mengedit adalah Superadmin
+        if ($currentUser->role === 'superadmin') {
+            $rules['role'] = ['required', Rule::in(['superadmin', 'admin'])];
+        }
+
+        $validated = $request->validate($rules);
 
         if (!empty($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
         } else {
-            unset($validated['password']);
+            unset($validated['password']); // Hapus dari array jika password tidak diisi
         }
 
         $user->update($validated);
 
-        return back()->with('success', 'Data pengguna berhasil diperbarui.');
+        return back()->with('success', 'Data profil berhasil diperbarui.');
     }
 
     public function destroy(User $user)
     {
-        // Mencegah admin menghapus dirinya sendiri saat sedang login
+        // Otorisasi: Hanya superadmin yang boleh menghapus admin lain
+        if (auth()->user()->role !== 'superadmin') {
+            return back()->withErrors(['message' => 'Akses Ditolak: Hanya Super Admin yang dapat menghapus pengguna.']);
+        }
+
         if (auth()->id() === $user->id) {
-            return back()->withErrors(['message' => 'Anda tidak dapat menghapus akun Anda sendiri.']);
+            return back()->withErrors(['message' => 'Aksi Ditolak: Anda tidak dapat menghapus akun Anda sendiri saat sedang login.']);
         }
 
         $user->delete();
