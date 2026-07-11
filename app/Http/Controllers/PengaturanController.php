@@ -12,9 +12,13 @@ class PengaturanController extends Controller
 {
     public function index()
     {
-        // Ambil data pengaturan pertama (jika belum ada, buat instans kosong)
         $pengaturan = Pengaturan::first() ?? new Pengaturan();
         
+        // Memastikan konfigurasi cetak memiliki default jika baru pertama kali dijalankan
+        if (!$pengaturan->konfigurasi_cetak) {
+            $pengaturan->konfigurasi_cetak = [];
+        }
+
         return Inertia::render('pengaturan/Index', [
             'pengaturan' => $pengaturan
         ]);
@@ -22,48 +26,49 @@ class PengaturanController extends Controller
 
     public function store(Request $request)
     {
+        $request->validate([
+            'kop_surat_file' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+        ]);
+
         $data = $request->except(['kop_surat_file']);
+        
+        // Ambil data konfigurasi cetak, pastikan selalu berupa array
+        $data['konfigurasi_cetak'] = $request->input('konfigurasi_cetak', []);
+
         $pengaturan = Pengaturan::first();
 
-        // Handle Upload Gambar (Kop Surat)
+        // Handle Upload File (Kop Surat)
         if ($request->hasFile('kop_surat_file')) {
             $file = $request->file('kop_surat_file');
             
-            // Hapus logo lama jika ada
             if ($pengaturan && $pengaturan->kop_surat && Storage::disk('public')->exists($pengaturan->kop_surat)) {
                 Storage::disk('public')->delete($pengaturan->kop_surat);
             }
 
-            // Simpan gambar baru ke folder storage/app/public/kop_surat
             $path = $file->store('kop_surat', 'public');
             $data['kop_surat'] = $path;
         }
 
-        // Simpan atau Update
         if ($pengaturan) {
             $pengaturan->update($data);
         } else {
             Pengaturan::create($data);
         }
 
-        return back()->with('success', 'Format Cetakan & Penandatangan berhasil disimpan!');
+        return back()->with('success', 'Format Cetakan & Konfigurasi Tanda Tangan berhasil disimpan!');
     }
 
-    public function resetDataUji()
+    public function backupDanReset()
     {
-        // PERINGATAN: Ini akan mengosongkan tabel transaksi. 
-        // Pastikan nama tabel disesuaikan dengan yang ada di database Anda.
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        
-        // Contoh pembersihan tabel transaksi (Kosongkan tabel master dibiarkan)
-        DB::table('purchase_orders')->truncate();
-        DB::table('po_details')->truncate();
-        DB::table('stock_mutations')->truncate();
-        DB::table('rabs')->truncate();
-        DB::table('rab_details')->truncate();
-        
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        try {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+            DB::table('purchase_orders')->truncate();
+            DB::table('po_details')->truncate();
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-        return back()->with('success', 'Data Uji Transaksi berhasil dibersihkan! Sistem kembali ke titik 0.');
+            return back()->with('success', 'Backup & Reset Data berhasil! Sistem kembali ke titik 0.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Terjadi kesalahan saat mereset data: ' . $e->getMessage());
+        }
     }
 }

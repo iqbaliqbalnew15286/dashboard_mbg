@@ -14,9 +14,9 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            // Role diubah menjadi superadmin dan admin
             $table->enum('role', ['superadmin', 'admin'])->default('admin');
-            $table->timestamp('last_seen')->nullable(); // Melacak terakhir online
+            $table->string('avatar')->nullable(); // DITAMBAHKAN: Kolom untuk menyimpan nama file foto
+            $table->timestamp('last_seen')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

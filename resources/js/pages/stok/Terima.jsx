@@ -1,17 +1,21 @@
-import React, { useState, useMemo } from 'react';
-import { router } from '@inertiajs/react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { usePage, router } from '@inertiajs/react';
 import axios from 'axios';
 import { 
-  Truck, Search, RotateCcw, CheckSquare, 
-  Loader2, CheckCircle2, XCircle, AlertCircle, ClipboardCheck
+  Search, RotateCcw, CheckSquare, 
+  Loader2, CheckCircle2, XCircle, AlertCircle, ClipboardCheck, Box, User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function StokTerimaPage() {
+  // MENGAMBIL NAMA USER DARI SESSION (Nama asli pengguna, bukan role-nya)
+  const { auth } = usePage().props; 
+  const petugasName = auth?.user?.name || 'Petugas Gudang';
+
+  const [pendingPos, setPendingPos] = useState([]); 
   const [noPoInput, setNoPoInput] = useState('');
   const [selectedPo, setSelectedPo] = useState(null);
   const [tglTerima, setTglTerima] = useState(new Date().toISOString().split('T')[0]);
-  const [petugas, setPetugas] = useState('');
   const [rows, setRows] = useState([]);
   
   const [isLoading, setIsLoading] = useState(false);
@@ -29,35 +33,57 @@ export default function StokTerimaPage() {
     return rows.reduce((total, item) => total + ((Number(item.qty_terima) || 0) * (Number(item.harga_satuan) || 0)), 0);
   }, [rows]);
 
-  // Tarik Data menggunakan Axios (Sangat Ringan & CSRF Protected)
+  const loadPendingPOs = async () => {
+    try {
+      const res = await axios.get('/stok/terima/po-pending'); 
+      setPendingPos(res.data.data || []);
+    } catch (err) {
+      console.error("Gagal memuat daftar PO", err);
+    }
+  };
+
+  useEffect(() => {
+    loadPendingPOs();
+  }, []);
+
   const cariPO = async () => {
-    if (!noPoInput.trim()) return showToast('Masukkan nomor PO terlebih dahulu!', 'error');
-    
+    if (!noPoInput.trim()) return showToast('Pilih nomor PO terlebih dahulu!', 'error');
     setIsLoading(true);
-    showToast('Mencari data PO...', 'loading');
+    showToast('Mencari rincian PO...', 'loading');
     
     try {
       const response = await axios.get(`/stok/terima/po/${encodeURIComponent(noPoInput)}`);
+      const poData = response.data.po;
       
-      setSelectedPo(response.data.po || null);
-      setRows(response.data.items || []);
+      if (poData?.status && String(poData.status).toLowerCase() === 'selesai') {
+          setSelectedPo(null);
+          setRows([]);
+          showToast('PO ini sudah berstatus Selesai dan tidak bisa ditarik lagi.', 'error');
+          return;
+      }
+
+      setSelectedPo(poData || null);
+      const formattedItems = (response.data.items || []).map(item => ({
+          ...item,
+          qty_terima: '' 
+      }));
+
+      setRows(formattedItems);
       setNotification(null);
     } catch (err) {
       setSelectedPo(null);
       setRows([]);
-      showToast(err.response?.data?.message || 'Gagal menarik data PO', 'error');
+      showToast(err.response?.data?.message || 'Gagal menarik data PO.', 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Simpan Data menggunakan Router Inertia
   const simpanBarang = () => {
     if (!tglTerima) return showToast('Tanggal terima harus diisi!', 'error');
-    if (!petugas.trim()) return showToast('Nama petugas penerima harus diisi!', 'error');
     
     const validItems = rows.filter(r => Number(r.qty_terima) > 0).map(r => ({
-      bahan_baku_id: r.bahan_baku_id,
+      bahan_baku_id: r.master_bahan_baku_id || r.bahan_baku_id, 
       supplier_id: r.supplier_id,
       qty_terima: Number(r.qty_terima),
       harga_satuan: Number(r.harga_satuan)
@@ -66,9 +92,9 @@ export default function StokTerimaPage() {
     if (validItems.length === 0) return showToast('Minimal ada 1 barang dengan Qty Terima lebih dari 0!', 'error');
 
     const payload = {
-      no_po: selectedPo.no_po,
+      no_po: selectedPo.no_po, 
       tgl_terima: tglTerima,
-      petugas: petugas,
+      petugas: petugasName, // MENGIRIMKAN NAMA USER OTOMATIS
       items: validItems
     };
 
@@ -80,9 +106,10 @@ export default function StokTerimaPage() {
       onSuccess: () => {
         showToast('Barang berhasil dimasukkan ke stok gudang!', 'success');
         handleReset();
+        loadPendingPOs(); 
       },
       onError: () => {
-        showToast('Terjadi kesalahan validasi data.', 'error');
+        showToast('Terjadi kesalahan saat memproses data.', 'error');
       },
       onFinish: () => setIsSaving(false)
     });
@@ -92,7 +119,6 @@ export default function StokTerimaPage() {
     setSelectedPo(null);
     setRows([]);
     setNoPoInput('');
-    setPetugas('');
     setTglTerima(new Date().toISOString().split('T')[0]);
   };
 
@@ -116,7 +142,6 @@ export default function StokTerimaPage() {
         )}
       </AnimatePresence>
 
-      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Penerimaan Barang (Stok Masuk)</h2>
@@ -124,26 +149,30 @@ export default function StokTerimaPage() {
         </div>
       </div>
 
-      {/* PENCARIAN PO PANEL */}
       <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1 w-full">
-          <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Ketik Nomor PO <span className="text-rose-500">*</span></label>
+          <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Pilih Nomor PO <span className="text-rose-500">*</span></label>
           <div className="relative">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input 
-              type="text" 
-              className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl py-3.5 pl-11 pr-4 font-bold text-sm text-slate-700 transition-all outline-none" 
-              placeholder="Contoh: PO-MBG-2026..." 
+            <Box size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <select 
+              className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl py-3.5 pl-11 pr-4 font-bold text-sm text-slate-700 transition-all outline-none appearance-none cursor-pointer" 
               value={noPoInput} 
               onChange={(e) => setNoPoInput(e.target.value)} 
-              onKeyDown={(e) => e.key === 'Enter' && cariPO()}
-            />
+            >
+              <option value="" disabled>-- Pilih PO yang tersedia --</option>
+              {pendingPos.length === 0 && <option value="" disabled>Tidak ada PO tertunda...</option>}
+              {pendingPos.map(po => (
+                  <option key={po.id} value={po.no_po}>
+                      {po.no_po} (Dipesan: {po.tgl_pesan})
+                  </option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="flex flex-wrap md:flex-nowrap gap-3 w-full md:w-auto mt-2 md:mt-0">
           <button 
             onClick={cariPO} 
-            disabled={isLoading}
+            disabled={isLoading || !noPoInput}
             className="flex-1 md:flex-none px-6 py-3.5 bg-blue-600 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 shadow-md shadow-blue-600/20"
           >
             {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16}/>} Tarik Data PO
@@ -157,10 +186,8 @@ export default function StokTerimaPage() {
         </div>
       </div>
 
-      {/* DATA PO & PENERIMAAN */}
       {selectedPo && (
         <div className="space-y-6 animate-fadeIn">
-          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm">
               <span className="text-[10px] font-black uppercase text-slate-400 block tracking-widest mb-1">Tgl Pesan (Dari PO)</span>
@@ -170,20 +197,22 @@ export default function StokTerimaPage() {
               <span className="text-[10px] font-black uppercase text-slate-400 block tracking-widest mb-2">Tanggal Terima Fisik</span>
               <input 
                 type="date" 
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all cursor-pointer" 
                 value={tglTerima} 
                 onChange={(e) => setTglTerima(e.target.value)} 
               />
             </div>
             <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm">
               <span className="text-[10px] font-black uppercase text-slate-400 block tracking-widest mb-2">Petugas Penerima</span>
-              <input 
-                type="text" 
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" 
-                placeholder="Nama Anda..." 
-                value={petugas} 
-                onChange={(e) => setPetugas(e.target.value)} 
-              />
+              
+              {/* KOLOM PETUGAS OTOMATIS (READ-ONLY) */}
+              <div className="w-full bg-slate-100 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-600 cursor-not-allowed flex items-center gap-3">
+                 <div className="w-6 h-6 bg-slate-200 rounded-full flex items-center justify-center text-slate-500">
+                     <User size={14} />
+                 </div>
+                 {petugasName}
+              </div>
+
             </div>
           </div>
 
@@ -232,11 +261,12 @@ export default function StokTerimaPage() {
                             <input 
                               type="number" 
                               min="0"
+                              placeholder="0"
                               className="w-20 bg-white border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-lg p-2 font-black text-center text-sm mx-auto outline-none transition-all shadow-sm" 
                               value={it.qty_terima} 
                               onChange={(e) => {
-                                let val = Number(e.target.value) || 0;
-                                if (val < 0) val = 0;
+                                let val = e.target.value;
+                                if (val !== '' && Number(val) < 0) return;
                                 setRows(prev => prev.map((p, i) => i === idx ? { ...p, qty_terima: val } : p));
                               }} 
                             />

@@ -1,280 +1,288 @@
-import React, { useState } from 'react';
-import { useForm } from '@inertiajs/react';
-import { 
-    Settings, Printer, Image as ImageIcon, Save, 
-    AlertTriangle, Trash2, DatabaseBackup, Loader2, X 
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useRef, useState } from 'react';
+import { useForm, usePage, router } from '@inertiajs/react';
+import { Save, AlertTriangle, FileText, Info, FileSpreadsheet, FileOutput, FilePlus, FileSignature, CheckSquare } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
-export default function PengaturanIndex({ pengaturan }) {
-    // State untuk Preview Gambar
-    const [previewKop, setPreviewKop] = useState(pengaturan?.kop_surat ? `/storage/${pengaturan.kop_surat}` : null);
-    
-    // State untuk Modal Konfirmasi
-    const [modalAction, setModalAction] = useState(null); // 'uji' atau 'backup'
+// KOMPONEN DIPISAH KE LUAR AGAR TIDAK KEHILANGAN FOKUS SAAT MENGETIK
+const CardPejabat = ({ title, keyJabatan, data, setData, activeTab, toggleCeklis }) => {
+    // Ambil status ceklis dari state konfigurasi dengan pengaman (opsional chaining)
+    const isChecked = data.konfigurasi_cetak[activeTab]?.[keyJabatan] || false;
 
-    // Form Handler via Inertia
-    const { data, setData, post, processing, errors } = useForm({
-        // File Logo
-        kop_surat_file: null,
-        
-        // TTD 1: Pengawas
-        pengawas_jabatan: pengaturan?.pengawas_jabatan || '',
-        pengawas_nama: pengaturan?.pengawas_nama || '',
-        pengawas_nip: pengaturan?.pengawas_nip || '',
-        
-        // TTD 2: Kepala SPPG
-        sppg_jabatan: pengaturan?.sppg_jabatan || '',
-        sppg_nama: pengaturan?.sppg_nama || '',
-        sppg_nip: pengaturan?.sppg_nip || '',
-        
-        // TTD 3: Asisten Lapangan
-        asisten_jabatan: pengaturan?.asisten_jabatan || '',
-        asisten_nama: pengaturan?.asisten_nama || '',
-        asisten_nip: pengaturan?.asisten_nip || '',
-        
-        // TTD 4: Penerima Barang
-        penerima_jabatan: pengaturan?.penerima_jabatan || '',
-        penerima_nama: pengaturan?.penerima_nama || '',
-        penerima_nip: pengaturan?.penerima_nip || '',
-    });
-
-    // Handle Upload Preview (Konversi sementara ke ObjectURL untuk preview cepat)
-    const handleImageChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            // Validasi ukuran atau tipe bisa ditambahkan di sini jika diperlukan
-            setData('kop_surat_file', file);
-            setPreviewKop(URL.createObjectURL(file));
-        }
+    // Helper untuk update data form
+    const handleChange = (e) => {
+        setData(e.target.name, e.target.value);
     };
 
-    // Eksekusi Simpan Pengaturan
-    const submitPengaturan = (e) => {
-        e.preventDefault();
-        // Inertia otomatis mengubah payload menjadi FormData karena ada file (kop_surat_file)
-        post('/pengaturan', {
-            preserveScroll: true,
-            onSuccess: () => toast.success('Format cetakan dan penandatangan berhasil disimpan!'),
-            onError: () => toast.error('Gagal menyimpan pengaturan. Periksa form Anda.'),
-        });
-    };
+    return (
+        <div className={`p-5 rounded-2xl border transition-all duration-300 flex flex-col justify-between ${
+            isChecked ? 'bg-white border-blue-200 shadow-sm' : 'bg-slate-50 border-slate-200 opacity-70'
+        }`}>
+            <div className="space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <label className="text-[11px] font-black text-slate-600 uppercase tracking-widest">{title}</label>
+                    
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={isChecked} 
+                            onChange={() => toggleCeklis(keyJabatan)} 
+                        />
+                        <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
 
-    // Eksekusi Hapus Data Uji
-    const { post: postUji, processing: ujiProcessing } = useForm();
-    const handleResetUji = () => {
-        postUji('/pengaturan/reset-uji', {
-            preserveScroll: true,
-            onSuccess: () => {
-                toast.success('Data PO dan Transaksi berhasil dikosongkan!');
-                setModalAction(null);
-            }
-        });
-    };
+                <div className="space-y-3">
+                    {/* INPUT JABATAN (BISA DIEDIT) */}
+                    <input 
+                        type="text" 
+                        name={`${keyJabatan}_jabatan`}
+                        value={data[`${keyJabatan}_jabatan`]}
+                        onChange={handleChange}
+                        disabled={!isChecked}
+                        placeholder={`Jabatan (${title})`}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm text-slate-600 font-bold outline-none focus:bg-white focus:border-blue-500 transition-all disabled:text-slate-400 disabled:bg-slate-100" 
+                    />
+                    
+                    {/* INPUT NAMA LENGKAP */}
+                    <input 
+                        type="text" 
+                        name={`${keyJabatan}_nama`}
+                        value={data[`${keyJabatan}_nama`]}
+                        onChange={handleChange}
+                        disabled={!isChecked}
+                        placeholder="Nama Lengkap Pejabat"
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm text-slate-800 font-black outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all disabled:bg-slate-100 disabled:text-slate-400"
+                    />
 
-    // Eksekusi Backup & Tutup Buku
-    const { post: postBackup, processing: backupProcessing } = useForm();
-    const handleBackupReset = () => {
-        postBackup('/pengaturan/backup-reset', {
-            preserveScroll: true,
-            onSuccess: () => {
-                toast.success('Backup berhasil dan data telah direset!');
-                setModalAction(null);
-            }
-        });
-    };
-
-    // Komponen Reusable untuk Kartu Tanda Tangan
-    const PejabatCard = ({ title, fieldPrefix }) => (
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-blue-400 transition-colors h-full flex flex-col">
-            <h6 className="text-center font-black text-xs text-slate-500 uppercase tracking-wide mb-4 h-8 flex items-center justify-center">
-                Tanda Tangan {title}
-            </h6>
-            <div className="space-y-3 mt-auto">
-                <input 
-                    type="text" placeholder="Jabatan..." 
-                    value={data[`${fieldPrefix}_jabatan`]} 
-                    onChange={e => setData(`${fieldPrefix}_jabatan`, e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
-                />
-                <input 
-                    type="text" placeholder="Nama Lengkap" 
-                    value={data[`${fieldPrefix}_nama`]} 
-                    onChange={e => setData(`${fieldPrefix}_nama`, e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
-                />
-                <input 
-                    type="text" placeholder="NIP / -" 
-                    value={data[`${fieldPrefix}_nip`]} 
-                    onChange={e => setData(`${fieldPrefix}_nip`, e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" 
-                />
+                    {/* INPUT NIP (BISA DIEDIT) */}
+                    <input 
+                        type="text" 
+                        name={`${keyJabatan}_nip`}
+                        value={data[`${keyJabatan}_nip`]}
+                        onChange={handleChange}
+                        disabled={!isChecked}
+                        placeholder="NIP / -"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm text-slate-600 outline-none focus:bg-white focus:border-blue-500 transition-all disabled:text-slate-400 disabled:bg-slate-100" 
+                    />
+                </div>
             </div>
         </div>
     );
+};
+
+export default function PengaturanIndex() {
+    const { props } = usePage();
+    const { pengaturan = {} } = props;
+
+    // Struktur Default
+    const defaultKonfigurasi = {
+        riwayat_masuk: { yayasan: false, pengawas: false, sppg: false, asisten: true, penerima: true },
+        barang_keluar: { yayasan: false, pengawas: false, sppg: false, asisten: true, penerima: true },
+        rekap_stok: { yayasan: false, pengawas: false, sppg: false, asisten: true, penerima: true },
+        laporan: { yayasan: true, pengawas: true, sppg: true, asisten: false, penerima: false },
+        berita_acara: { yayasan: false, pengawas: true, sppg: true, asisten: true, penerima: true }
+    };
+
+    // PERBAIKAN: Menghindari error JSON kosong dari Laravel yang dikonversi jadi array []
+    let parsedKonfig = pengaturan.konfigurasi_cetak;
+    if (!parsedKonfig || Array.isArray(parsedKonfig) || Object.keys(parsedKonfig).length === 0) {
+        parsedKonfig = defaultKonfigurasi;
+    } else {
+        // Gabungkan dengan default agar struktur tab selalu komplit
+        parsedKonfig = { ...defaultKonfigurasi, ...parsedKonfig };
+    }
+
+    // State Inertia lengkap dengan Jabatan, Nama, NIP untuk 5 Pejabat
+    const { data, setData, post, processing, errors } = useForm({
+        kop_surat_file: null,
+        
+        yayasan_jabatan: pengaturan.yayasan_jabatan || 'Kepala Yayasan / PIC',
+        yayasan_nama: pengaturan.yayasan_nama || '',
+        yayasan_nip: pengaturan.yayasan_nip || '',
+        
+        pengawas_jabatan: pengaturan.pengawas_jabatan || 'Pengawas Keuangan',
+        pengawas_nama: pengaturan.pengawas_nama || '',
+        pengawas_nip: pengaturan.pengawas_nip || '',
+        
+        sppg_jabatan: pengaturan.sppg_jabatan || 'Kepala SPPG',
+        sppg_nama: pengaturan.sppg_nama || '',
+        sppg_nip: pengaturan.sppg_nip || '',
+        
+        asisten_jabatan: pengaturan.asisten_jabatan || 'Asisten Lapangan',
+        asisten_nama: pengaturan.asisten_nama || '',
+        asisten_nip: pengaturan.asisten_nip || '',
+        
+        penerima_jabatan: pengaturan.penerima_jabatan || 'Penerima Barang',
+        penerima_nama: pengaturan.penerima_nama || '',
+        penerima_nip: pengaturan.penerima_nip || '',
+        
+        konfigurasi_cetak: parsedKonfig,
+    });
+
+    const fileInputRef = useRef(null);
+    const [activeTab, setActiveTab] = useState('rekap_stok');
+
+    // PERBAIKAN: Fungsi toggleCeklis dibuat kebal error (Safe Toggle)
+    const toggleCeklis = (jabatan) => {
+        // Ambil konfigurasi tab saat ini, jika undefined gunakan {}
+        const currentTabConfig = data.konfigurasi_cetak[activeTab] || {};
+        
+        setData('konfigurasi_cetak', {
+            ...data.konfigurasi_cetak,
+            [activeTab]: {
+                ...currentTabConfig,
+                [jabatan]: !currentTabConfig[jabatan]
+            }
+        });
+    };
+
+    const submitPengaturan = (e) => {
+        e.preventDefault();
+        post('/pengaturan', {
+            preserveScroll: true,
+            onSuccess: () => toast.success('Pengaturan sistem berhasil diperbarui!'),
+            onError: () => toast.error('Gagal menyimpan, periksa kembali form Anda.'),
+        });
+    };
+
+    const handleBackupReset = () => {
+        if (confirm('PERINGATAN! Tindakan ini akan menghapus semua riwayat transaksi. Lanjutkan?')) {
+            router.post('/pengaturan/backup-reset', {}, {
+                preserveScroll: true,
+                onSuccess: () => toast.success('Sistem berhasil di-reset ke titik nol.'),
+                onError: () => toast.error('Gagal melakukan reset sistem.')
+            });
+        }
+    };
+
+    // Array Menu Tab
+    const tabs = [
+        { id: 'riwayat_masuk', label: 'Riwayat Masuk', icon: <FilePlus size={16} /> },
+        { id: 'barang_keluar', label: 'Barang Keluar', icon: <FileOutput size={16} /> },
+        { id: 'rekap_stok', label: 'Rekap Stok', icon: <FileSpreadsheet size={16} /> },
+        { id: 'laporan', label: 'Lap. Transaksi', icon: <FileText size={16} /> },
+        { id: 'berita_acara', label: 'Berita Acara', icon: <FileSignature size={16} /> },
+    ];
 
     return (
-        <div className="container mx-auto space-y-6 font-['Plus_Jakarta_Sans',sans-serif] pb-12">
+        <div className="w-full pb-20 font-['Plus_Jakarta_Sans',sans-serif] space-y-8">
             <Toaster position="top-right" />
 
-            {/* HEADER */}
-            <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-md">
-                    <Settings size={24} />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Pengaturan Sistem</h1>
-                    <p className="text-slate-500 text-sm font-medium">Konfigurasi cetakan laporan dan manajemen database.</p>
-                </div>
+            <div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Pengaturan Sistem</h2>
+                <p className="text-slate-500 text-sm mt-1 font-medium">Kelola format cetakan dan penandatangan secara spesifik untuk setiap dokumen.</p>
             </div>
 
-            {/* KARTU 1: FORMAT CETAKAN */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 bg-blue-600 flex items-center gap-2 text-white">
-                    <Printer size={20} />
-                    <h2 className="font-bold text-base">Format Cetakan & Penandatangan</h2>
-                </div>
+            <form onSubmit={submitPengaturan} className="space-y-8">
                 
-                <form onSubmit={submitPengaturan}>
-                    <div className="p-6 space-y-8">
-                        {/* Area Upload Kop Surat */}
-                        <div className="pb-6 border-b border-slate-200">
-                            <label className="text-sm font-bold text-slate-800 block mb-3">Kop Surat / Logo Organisasi</label>
+                {/* BAGIAN 1: KOP SURAT */}
+                <div className="bg-white rounded-[2rem] shadow-sm overflow-hidden border border-slate-100">
+                    <div className="bg-blue-600 px-8 py-5 flex items-center gap-3">
+                        <FileText size={20} className="text-white" />
+                        <h3 className="font-black text-white text-base tracking-wide">Format Cetakan Header (Kop Surat)</h3>
+                    </div>
+                    
+                    <div className="p-8 space-y-6">
+                        <div>
+                            <label className="text-sm font-black text-slate-800 block mb-3">Upload Kop Surat / Logo (Berlaku untuk semua cetakan)</label>
                             
                             <input 
-                                type="file" 
-                                id="upload_kop" 
-                                className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-200 rounded-lg cursor-pointer bg-slate-50 mb-2" 
-                                accept="image/png, image/jpeg, image/jpg" 
-                                onChange={handleImageChange} 
+                                type="file" ref={fileInputRef} accept=".jpg,.jpeg,.png,.pdf"
+                                onChange={(e) => setData('kop_surat_file', e.target.files[0])}
+                                className="w-full md:w-1/2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 file:mr-4 file:py-3 file:px-6 file:border-0 file:border-r file:border-slate-200 file:text-sm file:font-black file:bg-slate-50 file:text-blue-600 hover:file:bg-blue-50 outline-none cursor-pointer"
                             />
                             
-                            <div className="text-xs text-blue-600 font-medium mb-4 flex items-center gap-1.5 bg-blue-50/50 p-2 rounded-lg border border-blue-100">
-                                <ImageIcon size={14} />
-                                <span><strong>Sistem Otomatis:</strong> Pilih file .JPG atau .PNG. Sistem akan memproses dan menyimpannya untuk header laporan.</span>
+                            <div className="text-slate-500 text-[12px] mt-3 flex items-start gap-2 max-w-2xl font-medium">
+                                <Info size={14} className="text-blue-500 mt-0.5" />
+                                <p>Sistem akan mengkonversi dan menyimpan file (JPG/PNG/PDF) secara otomatis.</p>
                             </div>
+                        </div>
 
-                            {previewKop && (
-                                <div className="text-center p-4 bg-white border-2 border-dashed border-slate-300 rounded-xl">
-                                    <span className="block text-slate-400 text-xs font-bold mb-3 tracking-widest">PREVIEW KOP SURAT</span>
-                                    <img src={previewKop} alt="Preview Kop" className="mx-auto max-h-36 object-contain rounded" />
+                        {pengaturan.kop_surat && (
+                            <div className="mt-6 p-8 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50 flex flex-col items-center justify-center">
+                                <span className="text-[10px] font-black text-slate-400 tracking-widest mb-6 uppercase bg-white px-4 py-1.5 rounded-full shadow-sm">Preview Kop Surat</span>
+                                <div className="w-full max-w-4xl bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-center">
+                                    {pengaturan.kop_surat.toLowerCase().endsWith('.pdf') ? (
+                                        <div className="w-full relative overflow-hidden h-[200px] md:h-[250px]"><iframe src={`/storage/${pengaturan.kop_surat}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} className="absolute top-0 left-0 w-full h-[1000px] border-0 pointer-events-none" scrolling="no"/></div>
+                                    ) : (
+                                        <img src={`/storage/${pengaturan.kop_surat}`} alt="Kop Surat" className="w-full h-auto max-h-[250px] object-contain" />
+                                    )}
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Area Pejabat */}
-                        <div>
-                            <h6 className="font-bold text-slate-800 mb-4 text-sm">Pejabat Penandatangan Laporan / Nota</h6>
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                                <PejabatCard title="Pengawas Keuangan" fieldPrefix="pengawas" />
-                                <PejabatCard title="Kepala SPPG" fieldPrefix="sppg" />
-                                <PejabatCard title="Asisten Lapangan" fieldPrefix="asisten" />
-                                <PejabatCard title="Penerima Barang" fieldPrefix="penerima" />
                             </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* BAGIAN 2: KONFIGURASI TANDA TANGAN DINAMIS DENGAN TAB */}
+                <div className="bg-white rounded-[2rem] shadow-sm overflow-hidden border border-slate-100 mt-8">
+                    <div className="bg-slate-800 px-8 py-5 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <CheckSquare size={20} className="text-white" />
+                            <h3 className="font-black text-white text-base tracking-wide">Konfigurasi Tanda Tangan per Dokumen</h3>
                         </div>
                     </div>
-
-                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end">
-                        <button 
-                            type="submit" 
-                            disabled={processing} 
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2 transition-all disabled:opacity-70 shadow-sm"
-                        >
-                            {processing ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} 
-                            {processing ? 'Menyimpan...' : 'Simpan Format Cetakan'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            {/* KARTU 2: ZONA BERBAHAYA */}
-            <div className="bg-white rounded-2xl border-2 border-red-500 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 bg-red-600 flex items-center gap-2 text-white">
-                    <AlertTriangle size={20} />
-                    <h2 className="font-bold text-base">Manajemen Database (Zona Berbahaya)</h2>
-                </div>
-                
-                <div className="p-6 bg-red-50/30">
-                    <p className="text-red-700 font-bold mb-6 text-sm bg-red-100/50 p-3 rounded-lg border border-red-200">
-                        Peringatan: Tindakan di bawah ini akan menghapus data transaksi dari sistem secara permanen. Pastikan Anda tahu apa yang Anda lakukan.
-                    </p>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Tombol Reset Uji */}
-                        <div className="bg-white p-6 rounded-xl border border-red-200 shadow-sm text-center flex flex-col h-full">
-                            <div className="flex-grow">
-                                <Trash2 className="mx-auto text-red-400 mb-3 opacity-80" size={48} strokeWidth={1.5} />
-                                <h5 className="font-bold text-red-600 mb-2 text-lg">Bersihkan Data Uji</h5>
-                                <p className="text-sm text-slate-500 mb-6">Menghapus seluruh transaksi PO (Header & Detail) tanpa membuat backup. Gunakan fitur ini <strong>hanya sebelum aplikasi diserahkan</strong> ke klien.</p>
-                            </div>
-                            <button 
-                                onClick={() => setModalAction('uji')} 
-                                className="w-full py-2.5 bg-white border-2 border-red-500 text-red-600 font-bold text-sm rounded-lg hover:bg-red-50 hover:border-red-600 transition-all flex items-center justify-center gap-2"
+                    {/* Menu Navigasi Tab */}
+                    <div className="bg-slate-50 border-b border-slate-200 px-4 pt-4 flex gap-2 overflow-x-auto no-scrollbar">
+                        {tabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`px-5 py-3 rounded-t-xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all whitespace-nowrap ${
+                                    activeTab === tab.id 
+                                    ? 'bg-white text-blue-600 border-t-2 border-l border-r border-blue-600 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]' 
+                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 border-transparent border-t-2 border-l border-r'
+                                }`}
                             >
-                                <Trash2 size={18}/> Hapus Data Transaksi
+                                {tab.icon} {tab.label}
                             </button>
+                        ))}
+                    </div>
+
+                    <div className="p-8 bg-slate-50/50">
+                        <div className="mb-6">
+                            <h4 className="text-lg font-black text-slate-800">Settingan untuk Dokumen: <span className="text-blue-600 capitalize">{activeTab.replace('_', ' ')}</span></h4>
+                            <p className="text-xs text-slate-500 font-medium mt-1">Nyalakan *toggle* pada pejabat yang ingin ditampilkan di bagian bawah dokumen <b className="uppercase">{activeTab.replace('_', ' ')}</b>.</p>
                         </div>
 
-                        {/* Tombol Tutup Buku */}
-                        <div className="bg-white p-6 rounded-xl border border-red-200 shadow-sm text-center flex flex-col h-full">
-                            <div className="flex-grow">
-                                <DatabaseBackup className="mx-auto text-red-400 mb-3 opacity-80" size={48} strokeWidth={1.5} />
-                                <h5 className="font-bold text-red-600 mb-2 text-lg">Backup & Tutup Buku (Reset)</h5>
-                                <p className="text-sm text-slate-500 mb-6">Sistem akan <strong>menyimpan riwayat</strong> transaksi dan menghapus semua data operasional aktif. Master Data tetap dipertahankan.</p>
-                            </div>
-                            <button 
-                                onClick={() => setModalAction('backup')}
-                                className="w-full py-2.5 bg-red-600 text-white font-bold text-sm rounded-lg hover:bg-red-700 transition-all flex items-center justify-center gap-2 shadow-sm"
-                            >
-                                <DatabaseBackup size={18}/> Jalankan Backup & Reset
-                            </button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <CardPejabat title="Kepala Yayasan / PIC" keyJabatan="yayasan" data={data} setData={setData} activeTab={activeTab} toggleCeklis={toggleCeklis} />
+                            <CardPejabat title="Pengawas Keuangan" keyJabatan="pengawas" data={data} setData={setData} activeTab={activeTab} toggleCeklis={toggleCeklis} />
+                            <CardPejabat title="Kepala SPPG" keyJabatan="sppg" data={data} setData={setData} activeTab={activeTab} toggleCeklis={toggleCeklis} />
+                            <CardPejabat title="Asisten Lapangan" keyJabatan="asisten" data={data} setData={setData} activeTab={activeTab} toggleCeklis={toggleCeklis} />
+                            <CardPejabat title="Penerima Barang" keyJabatan="penerima" data={data} setData={setData} activeTab={activeTab} toggleCeklis={toggleCeklis} />
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {/* MODAL GLOBAL UNTUK DANGER ACTIONS */}
-            <AnimatePresence>
-                {modalAction && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }} 
-                            animate={{ scale: 1, opacity: 1 }} 
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white rounded-2xl p-6 w-full max-w-md text-center shadow-2xl"
-                        >
-                            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <AlertTriangle size={32} />
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800 mb-2">Konfirmasi Tindakan</h3>
-                            
-                            <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-                                {modalAction === 'uji' 
-                                    ? <span className="font-medium">Anda akan <strong className="text-red-600">MENGHAPUS PERMANEN</strong> seluruh data Transaksi (PO, dsb). Lanjutkan hapus data uji?</span>
-                                    : <span className="font-medium">Sistem akan melakukan <strong>Backup</strong> dan <strong className="text-red-600">MERESET</strong> data aktif bulan ini. Lanjutkan Tutup Buku?</span>
-                                }
-                            </p>
+                <div className="flex justify-end pt-2">
+                    <button type="submit" disabled={processing} className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-600/30 flex items-center gap-3">
+                        <Save size={18} /> Simpan Seluruh Konfigurasi
+                    </button>
+                </div>
+            </form>
 
-                            <div className="flex gap-3">
-                                <button 
-                                    onClick={() => setModalAction(null)} 
-                                    className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200 transition-colors"
-                                >
-                                    Batal
-                                </button>
-                                <button 
-                                    onClick={modalAction === 'uji' ? handleResetUji : handleBackupReset} 
-                                    disabled={ujiProcessing || backupProcessing} 
-                                    className="flex-1 py-2.5 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                    {(ujiProcessing || backupProcessing) ? <Loader2 size={18} className="animate-spin" /> : 'Ya, Lanjutkan!'}
-                                </button>
-                            </div>
-                        </motion.div>
+            {/* DANGER ZONE - BACKUP & RESET */}
+            <div className="bg-rose-50 border border-rose-100 rounded-[2rem] p-8 flex flex-col md:flex-row justify-between items-center gap-6 mt-12 shadow-sm">
+                <div className="flex items-start gap-5">
+                    <div className="p-3 bg-white text-rose-500 rounded-2xl shrink-0 shadow-sm border border-rose-100"><AlertTriangle size={28}/></div>
+                    <div>
+                        <h3 className="font-black text-rose-700 text-lg tracking-tight">Zona Berbahaya: Reset Data Sistem</h3>
+                        <p className="text-rose-600/80 text-sm mt-1 font-medium leading-relaxed max-w-2xl">
+                            Tindakan ini akan mengosongkan seluruh tabel transaksi (PO, Penerimaan Barang, Rekap Stok). Pastikan Anda telah melakukan backup database ke format SQL sebelum mengeksekusi perintah ini.
+                        </p>
                     </div>
-                )}
-            </AnimatePresence>
+                </div>
+                <button 
+                    onClick={handleBackupReset}
+                    type="button"
+                    className="px-8 py-4 bg-white text-rose-600 font-black text-xs uppercase tracking-widest rounded-xl border border-rose-200 hover:bg-rose-600 hover:text-white transition-all shrink-0 shadow-sm w-full md:w-auto"
+                >
+                    Jalankan Backup & Reset
+                </button>
+            </div>
 
         </div>
     );

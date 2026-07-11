@@ -39,10 +39,10 @@ class StockController extends Controller
             ->leftJoin('suppliers as s', 'sm.supplier_id', '=', 's.id')
             ->select([
                 'sm.id',
-                DB::raw('po.no_po as no_po'),
+                DB::raw('po.nomor_po as no_po'), 
                 DB::raw('sm.tanggal as tgl_terima'),
                 DB::raw('mb.nama_barang as nama_barang'),
-                DB::raw('s.nama_supplier as nama_supplier'),
+                DB::raw('s.nama_perusahaan as nama_supplier'), 
                 'sm.qty as qty_terima',
                 DB::raw('mb.satuan as satuan'),
                 'sm.harga_satuan as harga_beli',
@@ -55,9 +55,9 @@ class StockController extends Controller
 
         if ($q !== '') {
             $query->where(function ($qq) use ($q) {
-                $qq->where('po.no_po', 'like', "%{$q}%")
+                $qq->where('po.nomor_po', 'like', "%{$q}%")
                    ->orWhere('mb.nama_barang', 'like', "%{$q}%")
-                   ->orWhere('s.nama_supplier', 'like', "%{$q}%")
+                   ->orWhere('s.nama_perusahaan', 'like', "%{$q}%")
                    ->orWhere('sm.petugas', 'like', "%{$q}%");
             });
         }
@@ -70,32 +70,44 @@ class StockController extends Controller
     public function poPendingForTerima()
     {
         $pos = PurchaseOrder::query()
-            ->where('status', 'pending')
-            ->orderByDesc('tgl_pesan')
-            ->get(['id', 'no_po', 'tgl_pesan']);
+            ->where('status', 'draft') 
+            ->orderByDesc('tanggal_pesan') 
+            ->get(['id', 'nomor_po as no_po', 'tanggal_pesan as tgl_pesan']);
 
         return response()->json(['data' => $pos]);
     }
 
     public function poDetailForTerima(string $noPo)
     {
-        $po = PurchaseOrder::query()->where('no_po', $noPo)->firstOrFail();
+        $po = PurchaseOrder::query()->where('nomor_po', $noPo)->firstOrFail();
+
+        // PROTEKSI LOGIKA BISNIS: Tolak jika PO sudah selesai/approved.
+        if (in_array(strtolower($po->status), ['selesai', 'approved'])) {
+            return response()->json([
+                'message' => 'PO ini sudah berstatus Selesai dan tidak bisa ditarik lagi.'
+            ], 400); // 400 Bad Request
+        }
 
         $items = PoDetail::query()
-            ->where('po_id', $po->id)
-            ->leftJoin('master_bahan_bakus as mb', 'po_details.bahan_baku_id', '=', 'mb.id')
+            ->where('purchase_order_id', $po->id) 
+            ->leftJoin('master_bahan_bakus as mb', 'po_details.master_bahan_baku_id', '=', 'mb.id') 
             ->leftJoin('suppliers as s', 'po_details.supplier_id', '=', 's.id')
             ->select([
                 'po_details.*',
                 'mb.nama_barang as nama_bahan',
-                's.nama_supplier as nama_supplier',
+                's.nama_perusahaan as nama_supplier', 
                 'mb.satuan as satuan',
                 DB::raw('(po_details.harga_satuan * po_details.qty) as subtotal_aktual'),
                 DB::raw('po_details.qty as qty_pesan'),
             ])->get();
 
         return response()->json([
-            'po' => ['id' => $po->id, 'no_po' => $po->no_po, 'tgl_pesan' => $po->tgl_pesan],
+            'po' => [
+                'id' => $po->id, 
+                'no_po' => $po->nomor_po, 
+                'tgl_pesan' => $po->tanggal_pesan, 
+                'status' => $po->status // Status disertakan untuk dibaca Frontend
+            ],
             'items' => $items
         ]);
     }
@@ -109,7 +121,7 @@ class StockController extends Controller
             'items'      => 'required|array',
         ]);
 
-        $po = PurchaseOrder::query()->where('no_po', $validated['no_po'])->firstOrFail();
+        $po = PurchaseOrder::query()->where('nomor_po', $validated['no_po'])->firstOrFail();
 
         DB::transaction(function () use ($validated, $po) {
             foreach ($validated['items'] as $item) {
@@ -129,11 +141,11 @@ class StockController extends Controller
                 ]);
             }
             
-            // Tandai PO Selesai
+            // Tandai PO Selesai setelah berhasil diterima gudang
             $po->update(['status' => 'selesai']);
         });
 
-        return response()->json(['ok' => true]);
+        return back()->with('success', 'Barang masuk berhasil disimpan dan status PO diperbarui.');
     }
 
     // =========================================================================
@@ -176,9 +188,8 @@ class StockController extends Controller
 
     public function listBarangTersedia()
     {
-        $barangs = MasterBahanBaku::select('id', 'kode_barang', 'nama_barang', 'satuan', 'harga_beli_awal')->get();
+        $barangs = MasterBahanBaku::select('id', 'kode_barang', 'nama_barang', 'satuan', 'harga_beli_awal', 'saldo_awal')->get();
         
-        // Kalkulasi real-time stok tersedia untuk form barang keluar
         $stokAktual = $barangs->map(function ($barang) {
             $masuk = StockMutation::where('master_bahan_baku_id', $barang->id)->where('jenis', 'masuk')->sum('qty');
             $keluar = StockMutation::where('master_bahan_baku_id', $barang->id)->where('jenis', 'keluar')->sum('qty');
@@ -220,7 +231,7 @@ class StockController extends Controller
             }
         });
 
-        return response()->json(['ok' => true]);
+        return back()->with('success', 'Barang keluar berhasil disimpan.');
     }
 
     // =========================================================================
@@ -244,7 +255,6 @@ class StockController extends Controller
         $bahanBakus = $query->get();
 
         $rekap = $bahanBakus->map(function ($bb) use ($tgl_awal, $tgl_akhir) {
-            // Kalkulasi Saldo Awal Berdasarkan Tanggal Filter
             $masuk_sebelum = 0;
             $keluar_sebelum = 0;
 
@@ -257,7 +267,6 @@ class StockController extends Controller
             
             $saldo_awal_aktual = $bb->saldo_awal + $masuk_sebelum - $keluar_sebelum;
 
-            // Kalkulasi Mutasi Selama Periode Terpilih
             $qMasuk = StockMutation::where('master_bahan_baku_id', $bb->id)->where('jenis', 'masuk');
             $qKeluar = StockMutation::where('master_bahan_baku_id', $bb->id)->where('jenis', 'keluar');
 
@@ -273,7 +282,6 @@ class StockController extends Controller
             $masuk_periode = $qMasuk->sum('qty');
             $keluar_periode = $qKeluar->sum('qty');
             
-            // Kalkulasi Hasil Akhir
             $saldo_akhir = $saldo_awal_aktual + $masuk_periode - $keluar_periode;
             $jumlah_rp = $saldo_akhir * $bb->harga_beli_awal;
 
@@ -288,7 +296,6 @@ class StockController extends Controller
             ];
         });
 
-        // Filter untuk Toggle 'Sembunyikan Data Kosong' di UI
         if ($hide_empty) {
             $rekap = $rekap->filter(function ($r) {
                 return $r['saldo_awal'] > 0 || $r['masuk'] > 0 || $r['keluar'] > 0 || $r['saldo_akhir'] > 0;

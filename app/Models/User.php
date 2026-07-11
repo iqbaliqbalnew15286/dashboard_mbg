@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -16,7 +15,8 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
-        'last_seen', // Daftarkan di sini
+        'avatar', // Daftarkan di sini
+        'last_seen', 
     ];
 
     protected $hidden = [
@@ -29,7 +29,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'last_seen' => 'datetime', // Format otomatis menjadi Carbon DateTime
+            'last_seen' => 'datetime', 
         ];
     }
 }

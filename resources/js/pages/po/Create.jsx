@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { usePage, router } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, RotateCcw, Search, Save, X, Printer } from 'lucide-react';
+import { Plus, Trash2, RotateCcw, Search, Save, X, Printer, AlertTriangle } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 // Jika Anda menggunakan AdminLayout, uncomment baris di bawah dan bungkus return dengan <AdminLayout>
@@ -12,30 +12,30 @@ export default function PoCreate() {
   const bahanBakus = props.bahan_bakus || [];
   const suppliers = props.suppliers || [];
 
-  // Cetak Blueprint Nilai Form Awal
+  // Cetak Blueprint Nilai Form Awal (QTY & Harga dikosongkan agar tidak ada angka 0/1 tersangkut)
   const getInitialForm = () => ({
-    kategori_biaya: '', // Sekarang menggunakan string langsung
+    kategori_biaya: '',
     nomor_po: '',
     tanggal_pesan: new Date().toISOString().slice(0, 10),
     tanggal_diberikan: '',
     grand_total: 0,
-    items: [{ bahan_baku_id: '', supplier_id: '', qty: 1, harga_satuan: 0, subtotal: 0 }],
+    items: [{ bahan_baku_id: '', supplier_id: '', qty: '', harga_satuan: '', subtotal: 0 }],
   });
 
   const [form, setForm] = useState(getInitialForm());
   const [showPreview, setShowPreview] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
   const formatRp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
 
-  // FUNGSI RESET FORM TOTAL
-  const resetFormPO = () => {
-    if (confirm('Apakah Anda yakin ingin mengosongkan kembali seluruh isi form ini?')) {
-      setForm(getInitialForm());
-      setErrors({});
-      toast.success('Form berhasil di-reset');
-    }
+  // FUNGSI RESET FORM TOTAL (MODERN UI)
+  const executeReset = () => {
+    setForm(getInitialForm());
+    setErrors({});
+    setShowResetConfirm(false);
+    toast.success('Form berhasil dikosongkan!');
   };
 
   const calcGrandTotal = (items) => items.reduce((sum, it) => sum + (Number(it.subtotal) || 0), 0);
@@ -49,7 +49,7 @@ export default function PoCreate() {
         // Auto-fill harga satuan ketika barang dipilih
         if (field === 'bahan_baku_id') {
            const selectedBahan = bahanBakus.find(b => b.id.toString() === value.toString());
-           if (selectedBahan) next.harga_satuan = selectedBahan.harga_beli_awal || 0;
+           if (selectedBahan) next.harga_satuan = selectedBahan.harga_beli_awal || '';
         }
 
         next.subtotal = (Number(next.qty) || 0) * (Number(next.harga_satuan) || 0);
@@ -62,14 +62,14 @@ export default function PoCreate() {
   const addRow = () => {
     setForm((prev) => ({
       ...prev,
-      items: [...prev.items, { bahan_baku_id: '', supplier_id: '', qty: 1, harga_satuan: 0, subtotal: 0 }],
+      items: [...prev.items, { bahan_baku_id: '', supplier_id: '', qty: '', harga_satuan: '', subtotal: 0 }],
     }));
   };
 
   const removeRow = (idx) => {
     setForm((prev) => {
       const items = prev.items.filter((_, i) => i !== idx);
-      const normalized = items.length ? items : [{ bahan_baku_id: '', supplier_id: '', qty: 1, harga_satuan: 0, subtotal: 0 }];
+      const normalized = items.length ? items : [{ bahan_baku_id: '', supplier_id: '', qty: '', harga_satuan: '', subtotal: 0 }];
       return { ...prev, items: normalized, grand_total: calcGrandTotal(normalized) };
     });
   };
@@ -89,10 +89,10 @@ export default function PoCreate() {
   };
 
   return (
-    <div className="w-full pb-10 font-['Plus_Jakarta_Sans',sans-serif] relative space-y-6">
+    <div className="w-full pb-10 font-['Plus_Jakarta_Sans',sans-serif] space-y-6">
       <Toaster position="top-right" />
       
-      {/* HEADER FORM - Disesuaikan dengan desain Bahan Baku (Simple) */}
+      {/* HEADER FORM */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Input Purchase Order (PO)</h2>
@@ -101,8 +101,8 @@ export default function PoCreate() {
         <div className="flex gap-3 w-full lg:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
           <button 
             type="button" 
-            onClick={resetFormPO} 
-            className="w-full lg:w-auto bg-slate-100 text-slate-600 px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 hover:text-slate-900 transition-all flex items-center justify-center gap-2"
+            onClick={() => setShowResetConfirm(true)} 
+            className="w-full lg:w-auto bg-slate-100 text-slate-600 px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all flex items-center justify-center gap-2"
           >
             <RotateCcw size={18} /> Reset Form
           </button>
@@ -135,7 +135,7 @@ export default function PoCreate() {
               value={form.nomor_po} 
               onChange={(e) => setForm(p => ({ ...p, nomor_po: e.target.value }))} 
               className={`w-full bg-slate-50 border ${errors.nomor_po ? 'border-rose-500' : 'border-slate-200'} rounded-2xl p-4 font-bold text-sm text-slate-800 focus:border-blue-500 transition-all outline-none`} 
-              placeholder="Kosongkan untuk otomatis dari sistem" 
+              placeholder="Kosongkan untuk otomatis" 
             />
             {errors.nomor_po && <p className="text-rose-500 text-xs mt-1 font-bold">{errors.nomor_po}</p>}
           </div>
@@ -152,13 +152,15 @@ export default function PoCreate() {
               />
             </div>
             <div>
-              <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Tgl Diberikan</label>
+              <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Tgl Diberikan <span className="text-rose-500">*</span></label>
               <input 
                 type="date" 
+                required 
                 value={form.tanggal_diberikan} 
                 onChange={(e) => setForm(p => ({ ...p, tanggal_diberikan: e.target.value }))} 
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-bold text-sm text-slate-800 outline-none focus:border-blue-500" 
+                className={`w-full bg-slate-50 border ${errors.tanggal_diberikan ? 'border-rose-500' : 'border-slate-200'} rounded-2xl p-4 font-bold text-sm text-slate-800 outline-none focus:border-blue-500`} 
               />
+              {errors.tanggal_diberikan && <p className="text-rose-500 text-xs mt-1 font-bold">{errors.tanggal_diberikan}</p>}
             </div>
           </div>
         </div>
@@ -170,7 +172,7 @@ export default function PoCreate() {
             <button 
               type="button" 
               onClick={addRow} 
-              className="w-full md:w-auto px-5 py-3 rounded-xl bg-slate-900 text-white font-bold text-xs uppercase tracking-widest hover:bg-blue-600 transition-all flex items-center justify-center gap-2"
+              className="w-full md:w-auto px-5 py-3 rounded-xl bg-slate-900 text-white font-bold text-xs uppercase tracking-widest hover:bg-blue-600 transition-all flex items-center justify-center gap-2 shadow-md"
             >
               <Plus size={16} /> Tambah Baris
             </button>
@@ -222,15 +224,16 @@ export default function PoCreate() {
                         <input 
                           type="number" 
                           required 
-                          min="0.01" 
+                          min="0" 
                           step="any" 
+                          placeholder="0"
                           value={item.qty} 
                           onChange={(e) => handleItemChange(idx, 'qty', e.target.value)} 
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-black text-sm text-center text-blue-700 outline-none focus:border-blue-500" 
                         />
                       </td>
                       <td className="px-2 py-2 text-center">
-                         <span className="text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-3 py-3 rounded-xl border border-slate-100 block">
+                         <span className="text-xs font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-3 py-3 rounded-xl border border-slate-100 block shadow-sm">
                            {bBaku ? bBaku.satuan : '-'}
                          </span>
                       </td>
@@ -239,6 +242,7 @@ export default function PoCreate() {
                           type="number" 
                           required 
                           min="0" 
+                          placeholder="0"
                           value={item.harga_satuan} 
                           onChange={(e) => handleItemChange(idx, 'harga_satuan', e.target.value)} 
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-sm text-slate-700 outline-none focus:border-blue-500" 
@@ -258,7 +262,7 @@ export default function PoCreate() {
                         </button>
                       </td>
                     </tr>
-                  )
+                  );
                 })}
               </tbody>
             </table>
@@ -291,17 +295,53 @@ export default function PoCreate() {
         </div>
       </form>
 
-      {/* MODAL NOTA PREVIEW */}
+      {/* MODAL RESET KONFIRMASI MODERN (Diperbaiki CSS-nya) */}
+      <AnimatePresence>
+          {showResetConfirm && (
+              <div className="fixed top-0 left-0 w-screen h-screen z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                  <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }} 
+                      animate={{ opacity: 1, scale: 1 }} 
+                      exit={{ opacity: 0, scale: 0.95 }} 
+                      className="bg-white rounded-[2rem] p-8 w-full max-w-sm text-center shadow-2xl relative"
+                  >
+                      <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-5">
+                          <AlertTriangle size={32} />
+                      </div>
+                      <h3 className="text-xl font-black text-slate-800 mb-2">Reset Form PO?</h3>
+                      <p className="text-sm font-medium text-slate-500 mb-8 leading-relaxed">
+                          Seluruh data yang telah Anda ketik akan dihapus dan dikembalikan seperti semula.
+                      </p>
+                      <div className="flex gap-3">
+                          <button 
+                            onClick={() => setShowResetConfirm(false)} 
+                            className="flex-1 py-3.5 bg-slate-100 text-slate-700 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-colors"
+                          >
+                              Batal
+                          </button>
+                          <button 
+                            onClick={executeReset} 
+                            className="flex-1 py-3.5 bg-rose-600 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-rose-700 transition-colors shadow-md shadow-rose-600/20"
+                          >
+                              Ya, Kosongkan
+                          </button>
+                      </div>
+                  </motion.div>
+              </div>
+          )}
+      </AnimatePresence>
+
+      {/* MODAL NOTA PREVIEW (Diperbaiki CSS-nya) */}
       <AnimatePresence>
         {showPreview && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed top-0 left-0 w-screen h-screen z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="bg-white rounded-[2rem] w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+              className="bg-white rounded-[2rem] w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] relative"
             >
-              <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
+              <div className="p-6 bg-slate-900 text-white flex justify-between items-center shrink-0">
                 <span className="font-black flex items-center gap-2 tracking-wide"><Search size={18}/> PREVIEW NOTA PESANAN</span>
                 <button onClick={() => setShowPreview(false)} className="p-2 hover:bg-white/20 rounded-full transition-colors"><X size={20}/></button>
               </div>
@@ -365,7 +405,7 @@ export default function PoCreate() {
                 </div>
               </div>
 
-              <div className="p-6 bg-white border-t border-slate-100 flex justify-end gap-3">
+              <div className="p-6 bg-white border-t border-slate-100 flex justify-end gap-3 shrink-0">
                 <button onClick={() => setShowPreview(false)} className="px-6 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest hover:bg-slate-50">Tutup Preview</button>
                 <button onClick={() => window.print()} className="px-6 py-3 rounded-xl bg-slate-900 text-white font-bold text-xs uppercase tracking-widest hover:bg-blue-600 transition-colors flex items-center gap-2 shadow-md"><Printer size={16}/> Cetak Dokumen</button>
               </div>

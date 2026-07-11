@@ -14,25 +14,27 @@ class MasterOperasionalController extends Controller
         // Paginasi & Pencarian Super Ringan di sisi Server
         $query = MasterOperasional::query();
 
-        if ($request->has('search') && $request->search != '') {
-            $query->where('nama_transaksi', 'like', '%' . $request->search . '%')
-                  ->orWhere('kode_transaksi', 'like', '%' . $request->search . '%');
+        // Menggunakan filled() lebih aman daripada sekadar mengecek keberadaan key
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where('nama_transaksi', 'like', "%{$search}%")
+                  ->orWhere('kode_transaksi', 'like', "%{$search}%");
         }
 
         $operasionals = $query->orderByDesc('created_at')->paginate(10)->withQueryString();
 
         // Kalkulasi di level Database (Tidak membebani RAM PHP)
         $totalTransaksi = MasterOperasional::count();
-        $totalPagu = MasterOperasional::sum('pagu_awal');
-        $totalBayar = MasterOperasional::sum('jumlah_bayar');
+        $totalPagu      = MasterOperasional::sum('pagu_awal');
+        $totalBayar     = MasterOperasional::sum('jumlah_bayar');
 
         return Inertia::render('master/operasional/Index', [
             'operasionals' => $operasionals,
             'filters'      => $request->only('search'),
             'stats'        => [
                 'total_transaksi' => $totalTransaksi,
-                'total_pagu'      => (int) $totalPagu,
-                'total_bayar'     => (int) $totalBayar
+                'total_pagu'      => (float) $totalPagu,  // Menggunakan float agar angka desimal tidak terpotong
+                'total_bayar'     => (float) $totalBayar
             ]
         ]);
     }
@@ -40,14 +42,17 @@ class MasterOperasionalController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'kode_transaksi' => 'nullable|string|unique:master_operasionals,kode_transaksi',
+            'kode_transaksi' => 'nullable|string|max:50|unique:master_operasionals,kode_transaksi',
             'nama_transaksi' => 'required|string|max:255',
             'satuan'         => 'required|string|max:50',
             'pagu_awal'      => 'required|numeric|min:0',
             'jumlah_bayar'   => 'nullable|numeric|min:0',
         ]);
 
-        $kodeTransaksi = $validated['kode_transaksi'] ?? 'OP-' . strtoupper(Str::random(4));
+        // Perbaikan: Gunakan !empty() agar input string kosong ("") tetap memicu generator otomatis
+        $kodeTransaksi = !empty($validated['kode_transaksi']) 
+            ? $validated['kode_transaksi'] 
+            : 'OP-' . strtoupper(Str::random(5));
 
         MasterOperasional::create([
             'kode_transaksi' => $kodeTransaksi,
@@ -65,7 +70,7 @@ class MasterOperasionalController extends Controller
         $operasional = MasterOperasional::findOrFail($id);
 
         $validated = $request->validate([
-            'kode_transaksi' => 'nullable|string|unique:master_operasionals,kode_transaksi,' . $id,
+            'kode_transaksi' => 'nullable|string|max:50|unique:master_operasionals,kode_transaksi,' . $id,
             'nama_transaksi' => 'required|string|max:255',
             'satuan'         => 'required|string|max:50',
             'pagu_awal'      => 'required|numeric|min:0',
@@ -73,11 +78,12 @@ class MasterOperasionalController extends Controller
         ]);
 
         $operasional->update([
-            'kode_transaksi' => $validated['kode_transaksi'] ?? $operasional->kode_transaksi,
+            // Tetap gunakan kode lama jika user mengosongkan kolom input saat update
+            'kode_transaksi' => !empty($validated['kode_transaksi']) ? $validated['kode_transaksi'] : $operasional->kode_transaksi,
             'nama_transaksi' => $validated['nama_transaksi'],
             'satuan'         => $validated['satuan'],
             'pagu_awal'      => $validated['pagu_awal'],
-            'jumlah_bayar'   => $validated['jumlah_bayar'] ?? $operasional->jumlah_bayar,
+            'jumlah_bayar'   => $validated['jumlah_bayar'] ?? 0,
         ]);
 
         return back()->with('success', 'Data Anggaran Operasional berhasil diperbarui.');
@@ -86,6 +92,7 @@ class MasterOperasionalController extends Controller
     public function destroy($id)
     {
         MasterOperasional::findOrFail($id)->delete();
+        
         return back()->with('success', 'Data Anggaran Operasional berhasil dihapus.');
     }
 }

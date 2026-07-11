@@ -1,42 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePage, router } from '@inertiajs/react';
 import { 
   ArrowRightLeft, Calendar, Search, 
-  Edit2, Trash2, Box, X, Eye, Loader2, RotateCcw
+  Edit2, Trash2, Box, Eye, Loader2, RotateCcw, X, AlertOctagon // FIX: X dan AlertOctagon ditambahkan
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast, { Toaster } from 'react-hot-toast';
 
 export default function TransaksiIndex({ transactions, filters }) {
-  // State Filter (Mengambil nilai dari URL jika ada)
   const [search, setSearch] = useState(filters?.search || '');
   const [filterDate, setFilterDate] = useState(filters?.date || '');
+  const isInitialRender = useRef(true);
   
-  // State UI
   const [selectedPo, setSelectedPo] = useState(null);
+  const [itemToDelete, setItemToDelete] = useState(null); // State untuk konfirmasi hapus
   const [isLoading, setIsLoading] = useState(false);
 
-  // Mengambil Array asli dari object paginasi Laravel
   const dataList = transactions?.data || [];
 
   // ==========================================
-  // PENCARIAN SERVER-SIDE (DEBOUNCED)
+  // PENCARIAN & FILTER SERVER-SIDE 
   // ==========================================
   useEffect(() => {
+    // Abaikan render pertama kali saat halaman dimuat
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      return;
+    }
+
+    // Timer agar server tidak jebol saat user mengetik/memilih tanggal
     const delayDebounceFn = setTimeout(() => {
-      // Hanya kirim request jika nilai pencarian atau tanggal berubah
-      if (search !== (filters?.search || '') || filterDate !== (filters?.date || '')) {
-        setIsLoading(true);
-        router.get('/transaksi', { search, date: filterDate }, {
-          preserveState: true,
-          preserveScroll: true,
-          replace: true,
-          onFinish: () => setIsLoading(false)
-        });
-      }
-    }, 500); // Jeda 500ms agar server tidak di-spam saat mengetik
+      setIsLoading(true);
+      router.get('/transaksi', { search: search, date: filterDate }, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        onFinish: () => setIsLoading(false)
+      });
+    }, 500); 
 
     return () => clearTimeout(delayDebounceFn);
-  }, [search, filterDate, filters?.search, filters?.date]);
+  }, [search, filterDate]); // <-- Trigger utama: Setiap kali tanggal atau teks berubah!
 
   const handleReset = () => {
     setSearch('');
@@ -48,15 +52,43 @@ export default function TransaksiIndex({ transactions, filters }) {
     });
   };
 
+  const executeDelete = () => {
+    if (!itemToDelete) return;
+    
+    router.delete(`/purchase-orders/${itemToDelete.id}`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        toast.success('Transaksi PO berhasil dihapus permanen!');
+        setItemToDelete(null);
+      },
+      onError: () => {
+        toast.error('Gagal menghapus data transaksi.');
+        setItemToDelete(null);
+      }
+    });
+  };
+
   const formatRp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
 
-  // Kalkulasi total hanya untuk data yang tampil di halaman aktif saat ini
+  const formatTanggal = (dateStr) => {
+    if (!dateStr) return '-';
+    try {
+      const [year, month, day] = dateStr.split('-');
+      const bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+      return `${parseInt(day, 10)} ${bulan[parseInt(month, 10) - 1]} ${year}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
   const totalHalamanIni = dataList.reduce((sum, p) => sum + (Number(p.grand_total) || 0), 0);
 
   return (
     <div className="w-full pb-10 font-['Plus_Jakarta_Sans',sans-serif] space-y-6">
       
-      {/* HEADER & PENCARIAN (Desain Flat Modern) */}
+      <Toaster position="top-right" />
+
+      {/* HEADER & PENCARIAN */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
@@ -69,7 +101,8 @@ export default function TransaksiIndex({ transactions, filters }) {
         </div>
         
         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-          {/* Filter Tanggal */}
+          
+          {/* FILTER TANGGAL */}
           <div className="relative group flex-1 sm:flex-none">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Calendar size={18} className="text-slate-400 group-focus-within:text-blue-500" />
@@ -79,11 +112,10 @@ export default function TransaksiIndex({ transactions, filters }) {
               value={filterDate}
               onChange={(e) => setFilterDate(e.target.value)}
               className="w-full sm:w-[160px] pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100 transition-all text-slate-700"
-              title="Filter Tanggal Pesan"
             />
           </div>
 
-          {/* Kolom Pencarian */}
+          {/* FILTER SEARCH */}
           <div className="relative group flex-1">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               {isLoading ? <Loader2 size={18} className="animate-spin text-blue-500" /> : <Search size={18} className="text-slate-400 group-focus-within:text-blue-500" />}
@@ -126,9 +158,9 @@ export default function TransaksiIndex({ transactions, filters }) {
               {dataList.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-16 text-center text-slate-400">
-                    <Box size={40} className="mx-auto mb-3 opacity-30" />
-                    <p className="font-bold text-base text-slate-500">Belum ada data transaksi.</p>
-                    <p className="text-xs mt-1">Coba sesuaikan kata kunci pencarian Anda.</p>
+                    <Box size={40} className="mx-auto mb-3 opacity-30 text-blue-500" />
+                    <p className="font-bold text-base text-slate-500">Tidak ada data transaksi ditemukan.</p>
+                    <p className="text-xs mt-1">Pencarian untuk tanggal atau keyword ini kosong.</p>
                   </td>
                 </tr>
               ) : (
@@ -137,8 +169,8 @@ export default function TransaksiIndex({ transactions, filters }) {
                     <td className="px-6 py-4 font-bold text-slate-400 text-center">
                       {transactions?.from ? transactions.from + idx : idx + 1}
                     </td>
-                    <td className="px-6 py-4 font-bold text-slate-600">{p.tanggal_pesan || '-'}</td>
-                    <td className="px-6 py-4 font-bold text-slate-500">{p.tanggal_diberikan || '-'}</td>
+                    <td className="px-6 py-4 font-bold text-slate-600">{formatTanggal(p.tanggal_pesan)}</td>
+                    <td className="px-6 py-4 font-bold text-slate-500">{formatTanggal(p.tanggal_diberikan)}</td>
                     <td className="px-6 py-4 font-black text-blue-600">#{p.nomor_po || '-'}</td>
                     <td className="px-6 py-4 text-center">
                         <span className="bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">
@@ -153,7 +185,7 @@ export default function TransaksiIndex({ transactions, filters }) {
                         <button 
                           onClick={() => setSelectedPo(p)} 
                           className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-sky-500 hover:text-white transition-all"
-                          title="Lihat Detail"
+                          title="Lihat Detail (Bahan Baku)"
                         >
                           <Eye size={15}/>
                         </button>
@@ -165,11 +197,7 @@ export default function TransaksiIndex({ transactions, filters }) {
                           <Edit2 size={15}/>
                         </button>
                         <button 
-                          onClick={() => {
-                              if(confirm('Hapus transaksi PO ini secara permanen?')) {
-                                  router.delete(`/purchase-orders/${p.id}`, { preserveScroll: true });
-                              }
-                          }} 
+                          onClick={() => setItemToDelete(p)} // Memanggil Modal modern, bukan confirm()
                           className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all"
                           title="Hapus Permanen"
                         >
@@ -199,7 +227,6 @@ export default function TransaksiIndex({ transactions, filters }) {
           </table>
         </div>
 
-        {/* COMPONENT PAGINASI */}
         {transactions && transactions.links && dataList.length > 0 && (
             <div className="flex items-center justify-between px-8 py-4 bg-white border-t border-slate-100">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
@@ -229,24 +256,22 @@ export default function TransaksiIndex({ transactions, filters }) {
       {/* MODAL DETAIL PO */}
       <AnimatePresence>
         {selectedPo && (
-          <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="fixed top-0 left-0 w-screen h-screen z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-              className="bg-white rounded-[2rem] w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+              className="bg-white rounded-[2rem] w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] relative"
             >
-              {/* Modal Header */}
               <div className="bg-slate-900 text-white px-8 py-5 flex justify-between items-center shrink-0">
                 <h5 className="font-black flex items-center gap-3 text-lg tracking-wide">
-                  <Box className="text-blue-500" size={24} /> Daftar Bahan Pesanan ({selectedPo.nomor_po})
+                  <Box className="text-blue-500" size={24} /> Rincian Bahan ({selectedPo.nomor_po})
                 </h5>
                 <button onClick={() => setSelectedPo(null)} className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors">
                   <X size={18} />
                 </button>
               </div>
               
-              {/* Modal Body (Tabel Item) */}
               <div className="p-8 overflow-y-auto flex-1 bg-slate-50">
                 <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm bg-white">
                   <table className="w-full text-left border-collapse">
@@ -271,7 +296,7 @@ export default function TransaksiIndex({ transactions, filters }) {
                             <td className="px-6 py-4 text-center font-black text-blue-600 bg-blue-50/30">{Number(item.qty)}</td>
                             <td className="px-6 py-4 text-center font-bold text-slate-500 uppercase text-[10px] tracking-widest">{item.bahan_baku?.satuan || '-'}</td>
                             <td className="px-6 py-4 text-right font-bold text-slate-600">{formatRp(item.harga_satuan)}</td>
-                            <td className="px-6 py-4 text-right font-black text-emerald-700 bg-emerald-50/20">{formatRp(item.subtotal)}</td>
+                            <td className="px-6 py-4 text-right font-black text-emerald-700 bg-emerald-50/20">{formatRp(item.harga_satuan * item.qty)}</td>
                           </tr>
                         ))
                       )}
@@ -280,13 +305,49 @@ export default function TransaksiIndex({ transactions, filters }) {
                 </div>
               </div>
 
-              {/* Modal Footer */}
               <div className="p-6 bg-white border-t border-slate-100 flex justify-end shrink-0">
                 <button 
                   onClick={() => setSelectedPo(null)} 
                   className="px-8 py-3 bg-slate-100 text-slate-600 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-colors"
                 >
                   Tutup Rincian
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL KONFIRMASI HAPUS (MODERN NOTIFICATION) */}
+      <AnimatePresence>
+        {itemToDelete && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col p-6 text-center relative"
+            >
+              <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertOctagon size={32} />
+              </div>
+              <h3 className="font-black text-slate-800 text-lg">Hapus Transaksi?</h3>
+              <p className="text-sm text-slate-500 mt-2 font-medium leading-relaxed">
+                Anda yakin ingin menghapus permanen PO <span className="font-bold text-slate-800">#{itemToDelete.nomor_po}</span>? Data tidak dapat dipulihkan.
+              </p>
+              
+              <div className="flex gap-3 mt-8">
+                <button 
+                  onClick={() => setItemToDelete(null)}
+                  className="flex-1 py-3.5 bg-slate-100 text-slate-600 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-colors"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={executeDelete}
+                  className="flex-1 py-3.5 bg-rose-600 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-rose-700 shadow-lg shadow-rose-600/30 transition-colors"
+                >
+                  Hapus
                 </button>
               </div>
             </motion.div>

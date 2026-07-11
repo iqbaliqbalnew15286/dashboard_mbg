@@ -10,10 +10,9 @@ return new class extends Migration
     {
         Schema::create('master_operasionals', function (Blueprint $table) {
             $table->id();
-            // Kolom ini yang sebelumnya hilang sehingga menyebabkan error 1054
-            $table->string('kode_transaksi')->unique();
+            $table->string('kode_transaksi', 50)->unique();
             $table->string('nama_transaksi');
-            $table->string('satuan')->nullable()->default('-');
+            $table->string('satuan', 50);
             $table->decimal('pagu_awal', 15, 2)->default(0);
             $table->decimal('jumlah_bayar', 15, 2)->default(0);
             $table->timestamps();

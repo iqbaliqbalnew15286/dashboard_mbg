@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { usePage, router } from '@inertiajs/react';
-import { FileEdit, Save, X, Plus, Trash2 } from 'lucide-react';
+import { FileEdit, Save, X, Plus, Trash2, ArrowLeft, Loader2, Box, Calendar } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
+
+// PERBAIKAN: Menggunakan ../../ untuk naik 2 tingkat folder dari pages/po/
+import AdminLayout from '../../layouts/AdminLayout'; 
 
 export default function PoEdit() {
   const { props } = usePage();
@@ -38,6 +41,7 @@ export default function PoEdit() {
         if (i !== idx) return it;
         const next = { ...it, [field]: value };
         
+        // Auto-fill harga jika memilih bahan baku
         if (field === 'bahan_baku_id') {
            const selectedBahan = bahan_bakus.find(b => b.id.toString() === value.toString());
            if (selectedBahan) next.harga_satuan = selectedBahan.harga_beli_awal || 0;
@@ -76,95 +80,162 @@ export default function PoEdit() {
   };
 
   return (
-    <div className="space-y-6 pb-10 font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="w-full pb-10 font-['Plus_Jakarta_Sans',sans-serif] relative space-y-6">
       <Toaster position="top-right" />
       
-      <div className="flex justify-between items-center bg-white p-8 rounded-[2rem] border border-slate-200/60 shadow-sm">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 flex items-center gap-3">
-            <FileEdit className="text-amber-500" size={28}/> Edit Purchase Order
-          </h1>
-          <p className="text-sm text-slate-500 font-medium mt-1">Perbarui data PO #{po.nomor_po}</p>
+            <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+              <FileEdit className="text-blue-600" size={28}/> 
+              Edit Purchase Order
+            </h2>
+            <p className="text-slate-500 text-sm mt-1">Perbarui data atau item untuk PO <span className="font-black text-blue-600">#{po.nomor_po}</span></p>
         </div>
-        <button onClick={() => router.visit('/transaksi')} className="px-5 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs uppercase hover:bg-slate-50 flex items-center gap-2">
-          <X size={16} /> Batal Edit
-        </button>
+        <div className="flex gap-3 w-full lg:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+            <button 
+              type="button"
+              onClick={() => router.visit('/transaksi')} 
+              className="w-full lg:w-auto bg-slate-100 text-slate-600 px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-2 shrink-0"
+            >
+              <ArrowLeft size={16} /> Batal Edit
+            </button>
+        </div>
       </div>
 
       <form onSubmit={handleFormSubmit} className="space-y-6">
-        <div className="bg-white rounded-[2rem] border border-slate-200/60 p-8 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Kategori Biaya *</label>
-            <select required value={form.kategori_biaya} onChange={(e) => setForm(p => ({ ...p, kategori_biaya: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-bold text-sm outline-none focus:border-blue-500">
-              <option value="" disabled>Pilih Kategori...</option>
-              <option value="Bahan Baku">Bahan Baku</option>
-              <option value="Operasional">Operasional</option>
-              <option value="Insentif Fasilitas">Insentif Fasilitas</option>
-            </select>
-            {errors.kategori_biaya && <p className="text-rose-500 text-xs mt-1 font-bold">{errors.kategori_biaya}</p>}
-          </div>
+        
+        {/* METADATA PO PANEL */}
+        <div className="bg-white rounded-[2rem] border border-blue-100 p-6 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-blue-400"></div>
+          
+          <h3 className="font-black text-blue-600 uppercase tracking-widest text-xs mb-5 flex items-center gap-2 border-b border-slate-100 pb-4">
+            <span className="bg-blue-100 w-6 h-6 rounded-full flex items-center justify-center shrink-0">1</span> INFORMASI UMUM PO
+          </h3>
 
-          <div>
-            <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Nomor PO *</label>
-            <input required value={form.nomor_po} onChange={(e) => setForm(p => ({ ...p, nomor_po: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-bold text-sm outline-none focus:border-blue-500" />
-            {errors.nomor_po && <p className="text-rose-500 text-xs mt-1 font-bold">{errors.nomor_po}</p>}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             <div>
-              <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Tgl Pesan *</label>
-              <input type="date" required value={form.tanggal_pesan} onChange={(e) => setForm(p => ({ ...p, tanggal_pesan: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-bold text-sm outline-none focus:border-blue-500" />
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Kategori Biaya <span className="text-rose-500">*</span></label>
+              <div className="relative">
+                <Box size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <select required value={form.kategori_biaya} onChange={(e) => setForm(p => ({ ...p, kategori_biaya: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl py-3 pl-11 pr-4 text-sm font-bold text-slate-700 outline-none transition-all appearance-none cursor-pointer">
+                  <option value="" disabled>Pilih Kategori...</option>
+                  <option value="Bahan Baku">Bahan Baku</option>
+                  <option value="Operasional">Operasional</option>
+                  <option value="Insentif Fasilitas">Insentif Fasilitas</option>
+                </select>
+              </div>
+              {errors.kategori_biaya && <p className="text-rose-500 text-xs mt-1 font-bold">{errors.kategori_biaya}</p>}
             </div>
+
             <div>
-              <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Tgl Diberikan</label>
-              <input type="date" value={form.tanggal_diberikan} onChange={(e) => setForm(p => ({ ...p, tanggal_diberikan: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-bold text-sm outline-none focus:border-blue-500" />
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Nomor PO <span className="text-rose-500">*</span></label>
+              <input required value={form.nomor_po} onChange={(e) => setForm(p => ({ ...p, nomor_po: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none transition-all" placeholder="Contoh: PO-MBG-123..." />
+              {errors.nomor_po && <p className="text-rose-500 text-xs mt-1 font-bold">{errors.nomor_po}</p>}
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Tanggal Pesan <span className="text-rose-500">*</span></label>
+              <div className="relative">
+                <Calendar size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input type="date" required value={form.tanggal_pesan} onChange={(e) => setForm(p => ({ ...p, tanggal_pesan: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl py-3 pl-11 pr-4 text-sm font-bold text-slate-700 outline-none transition-all cursor-pointer" />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Tanggal Diberikan (Opsional)</label>
+              <div className="relative">
+                <Calendar size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input type="date" value={form.tanggal_diberikan} onChange={(e) => setForm(p => ({ ...p, tanggal_diberikan: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl py-3 pl-11 pr-4 text-sm font-bold text-slate-700 outline-none transition-all cursor-pointer" />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-sm overflow-hidden">
-          <div className="p-6 md:p-8 flex justify-between items-center border-b border-slate-100">
-            <h2 className="text-lg font-black text-slate-800">Item PO</h2>
-            <button type="button" onClick={addRow} className="px-5 py-3 rounded-xl bg-slate-900 text-white font-bold text-xs uppercase tracking-widest hover:bg-blue-600 flex items-center gap-2"><Plus size={16} /> Tambah Item</button>
+        {/* ITEMS PANEL */}
+        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+          
+          <div className="p-6 md:px-8 md:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 bg-slate-50/50 gap-4">
+            <h3 className="font-black text-rose-600 uppercase tracking-widest text-xs flex items-center gap-2 m-0">
+              <span className="bg-rose-100 w-6 h-6 rounded-full flex items-center justify-center shrink-0">2</span> DAFTAR ITEM PO
+            </h3>
+            <button 
+              type="button" 
+              onClick={addRow} 
+              className="px-5 py-2.5 rounded-xl bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-colors flex items-center gap-2 shadow-md w-full sm:w-auto justify-center"
+            >
+              <Plus size={14} /> Tambah Baris Baru
+            </button>
           </div>
-          <div className="overflow-x-auto p-4 md:p-8">
-            <table className="w-full min-w-[900px] text-left border-separate border-spacing-y-2">
-              <thead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">
+
+          <div className="overflow-x-auto p-4 md:p-6 bg-white min-h-[300px]">
+            <table className="w-full min-w-[900px] text-left border-collapse">
+              <thead className="bg-slate-900 text-[10px] uppercase font-black text-white tracking-widest rounded-xl">
                 <tr>
-                  <th className="px-2 pb-2">Bahan / Barang</th>
-                  <th className="px-2 pb-2 w-[220px]">Supplier</th>
-                  <th className="px-2 pb-2 w-[100px]">Qty</th>
-                  <th className="px-2 pb-2 w-[180px]">Harga Satuan</th>
-                  <th className="px-2 pb-2 w-[200px] text-right">Total</th>
-                  <th className="px-2 pb-2 w-14"></th>
+                  <th className="px-4 py-4 rounded-tl-xl w-[25%]">Bahan / Barang</th>
+                  <th className="px-4 py-4 w-[25%]">Supplier</th>
+                  <th className="px-4 py-4 w-[15%] text-center">Volume (Qty)</th>
+                  <th className="px-4 py-4 w-[15%] text-right">Harga Satuan</th>
+                  <th className="px-4 py-4 w-[15%] text-right">Subtotal</th>
+                  <th className="px-4 py-4 rounded-tr-xl w-14 text-center">Aksi</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {form.items.map((item, idx) => (
-                  <tr key={idx} className="align-middle">
-                    <td className="px-2 py-2">
-                      <select required value={item.bahan_baku_id} onChange={(e) => handleItemChange(idx, 'bahan_baku_id', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-sm outline-none focus:border-blue-500">
-                        <option value="">Pilih...</option>
+                  <tr key={idx} className="align-middle hover:bg-slate-50/50 transition-colors">
+                    
+                    {/* Bahan Baku */}
+                    <td className="px-2 py-3">
+                      <select required value={item.bahan_baku_id} onChange={(e) => handleItemChange(idx, 'bahan_baku_id', e.target.value)} className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl p-3 font-bold text-sm text-slate-700 outline-none transition-all cursor-pointer">
+                        <option value="">Pilih Barang...</option>
                         {bahan_bakus.map(b => <option key={b.id} value={b.id}>{b.nama_barang}</option>)}
                       </select>
                     </td>
-                    <td className="px-2 py-2">
-                      <select required value={item.supplier_id} onChange={(e) => handleItemChange(idx, 'supplier_id', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-sm outline-none focus:border-blue-500">
-                        <option value="">Pilih...</option>
+
+                    {/* Supplier */}
+                    <td className="px-2 py-3">
+                      <select required value={item.supplier_id} onChange={(e) => handleItemChange(idx, 'supplier_id', e.target.value)} className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl p-3 font-bold text-sm text-slate-700 outline-none transition-all cursor-pointer">
+                        <option value="">Pilih Supplier...</option>
                         {suppliers.map(s => <option key={s.id} value={s.id}>{s.nama_perusahaan}</option>)}
                       </select>
                     </td>
-                    <td className="px-2 py-2">
-                      <input type="number" required min="0.01" step="any" value={item.qty} onChange={(e) => handleItemChange(idx, 'qty', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-black text-sm text-center outline-none focus:border-blue-500" />
+
+                    {/* Qty */}
+                    <td className="px-2 py-3">
+                      <input 
+                        type="number" required min="0.01" step="any" placeholder="0"
+                        value={item.qty} 
+                        onChange={(e) => handleItemChange(idx, 'qty', e.target.value)} 
+                        className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl p-3 font-black text-sm text-slate-700 text-center outline-none transition-all" 
+                      />
                     </td>
-                    <td className="px-2 py-2">
-                      <input type="number" required min="0" value={item.harga_satuan} onChange={(e) => handleItemChange(idx, 'harga_satuan', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-sm outline-none focus:border-blue-500" />
+
+                    {/* Harga Satuan */}
+                    <td className="px-2 py-3">
+                      <input 
+                        type="number" required min="0" placeholder="0"
+                        value={item.harga_satuan} 
+                        onChange={(e) => handleItemChange(idx, 'harga_satuan', e.target.value)} 
+                        className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl p-3 font-bold text-sm text-slate-700 text-right outline-none transition-all" 
+                      />
                     </td>
-                    <td className="px-2 py-2 text-right font-black text-slate-800 bg-slate-50 rounded-xl border border-slate-100 pr-4">
-                      {formatRp(item.subtotal)}
+
+                    {/* Subtotal (Read Only UI) */}
+                    <td className="px-2 py-3 text-right">
+                      <div className="bg-slate-100/80 border border-slate-200 rounded-xl p-3 font-black text-sm text-slate-800 text-right min-w-[120px]">
+                        {formatRp(item.subtotal)}
+                      </div>
                     </td>
-                    <td className="px-2 py-2 text-center">
-                      <button type="button" onClick={() => removeRow(idx)} disabled={form.items.length === 1} className="p-3 border border-slate-200 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white disabled:opacity-30">
+
+                    {/* Tombol Hapus (DIPERJELAS) */}
+                    <td className="px-2 py-3 text-center">
+                      <button 
+                        type="button" 
+                        onClick={() => removeRow(idx)} 
+                        disabled={form.items.length === 1} 
+                        title="Hapus Baris"
+                        className="p-2.5 mx-auto bg-rose-100 text-rose-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-rose-100 disabled:hover:text-rose-600 flex items-center justify-center shadow-sm"
+                      >
                         <Trash2 size={16}/>
                       </button>
                     </td>
@@ -175,16 +246,27 @@ export default function PoEdit() {
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row items-center justify-between bg-white rounded-[2rem] border border-slate-200/60 p-6 shadow-sm gap-4">
-          <div className="w-full md:w-auto bg-slate-900 text-white rounded-[1.25rem] px-8 py-5 flex items-center justify-between md:justify-start gap-8 shadow-md">
+        {/* FOOTER ACTION PANEL */}
+        <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="w-full md:w-auto bg-slate-900 border border-slate-800 rounded-2xl px-8 py-5 flex items-center justify-between md:justify-start gap-8 shadow-md">
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">GRAND TOTAL</div>
-            <div className="text-2xl font-black text-amber-400">{formatRp(form.grand_total)}</div>
+            <div className="text-2xl font-black text-emerald-400 tracking-tight">{formatRp(form.grand_total)}</div>
           </div>
-          <button type="submit" disabled={loading || form.items.length === 0} className="w-full md:w-auto px-8 py-4 bg-amber-500 text-white font-black rounded-xl hover:bg-amber-600 text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
-            <Save size={16}/> {loading ? 'MENYIMPAN...' : 'SIMPAN PERUBAHAN'}
+          
+          <button 
+            type="submit" 
+            disabled={loading || form.items.length === 0} 
+            className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-blue-600/30 disabled:opacity-50 disabled:shadow-none shrink-0"
+          >
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18}/>} 
+            {loading ? 'Menyimpan...' : 'SIMPAN PERUBAHAN PO'}
           </button>
         </div>
+
       </form>
     </div>
   );
 }
+
+// Tambahkan layout persisten
+PoEdit.layout = page => <AdminLayout children={page} />;

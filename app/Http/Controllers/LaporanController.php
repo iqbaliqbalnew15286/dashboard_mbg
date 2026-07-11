@@ -18,7 +18,7 @@ class LaporanController extends Controller
     public function transaksi(Request $request)
     {
         // OPTIMASI: Gunakan select() untuk membatasi kolom yang ditarik dari database.
-        // Ini akan memangkas ukuran payload JSON hingga 70% sehingga load data sangat cepat.
+        // Ini memangkas ukuran payload JSON sehingga load data sangat cepat.
         $query = PurchaseOrder::select('id', 'tanggal_pesan', 'nomor_po', 'kategori_biaya', 'grand_total');
 
         // Filter dari tanggal
@@ -37,7 +37,7 @@ class LaporanController extends Controller
         }
 
         // Mengambil data urut dari yang terbaru
-        $data = $query->orderByDesc('tanggal_pesan')->get();
+        $data = $query->orderByDesc('tanggal_pesan')->orderByDesc('id')->get();
 
         return response()->json([
             'data' => $data

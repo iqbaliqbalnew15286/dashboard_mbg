@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\File;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -12,15 +13,17 @@ class UserController extends Controller
 {
     public function index()
     {
-        // 1. Update status 'last_seen' pengguna yang sedang login saat ini
         if (auth()->check()) {
             auth()->user()->update(['last_seen' => now()]);
         }
 
         $users = User::latest()->get();
-        $onlineThreshold = now()->subMinutes(5); // Aktif dalam 5 menit terakhir dianggap Online
+        $onlineThreshold = now()->subMinutes(5);
 
         return Inertia::render('User', [
+            'auth' => [
+                'user' => auth()->user(), 
+            ],
             'users' => $users,
             'stats' => [
                 'total_akun' => $users->count(),
@@ -32,8 +35,7 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        // Otorisasi: Hanya superadmin yang boleh menambah admin
-        if (auth()->user()->role !== 'superadmin') {
+        if (strtolower(auth()->user()->role) !== 'superadmin') {
             return back()->withErrors(['message' => 'Akses Ditolak: Hanya Super Admin yang dapat menambahkan pengguna.']);
         }
 
@@ -42,9 +44,18 @@ class UserController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:6'],
             'role' => ['required', Rule::in(['superadmin', 'admin'])],
+            'avatar' => ['nullable', 'image', 'mimes:jpeg,png,jpg', 'max:2048'], // Validasi Foto Opsional
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
+
+        // LOGIKA UPLOAD FOTO
+        if ($request->hasFile('avatar')) {
+            $file = $request->file('avatar');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $file->move(public_path('uploads/avatars'), $filename);
+            $validated['avatar'] = 'uploads/avatars/' . $filename;
+        }
 
         User::create($validated);
 
@@ -55,10 +66,7 @@ class UserController extends Controller
     {
         $currentUser = auth()->user();
 
-        // Otorisasi Dinamis:
-        // - Superadmin bisa mengedit siapa saja.
-        // - Admin hanya bisa mengedit akunnya sendiri.
-        if ($currentUser->role !== 'superadmin' && $currentUser->id !== $user->id) {
+        if (strtolower($currentUser->role) !== 'superadmin' && $currentUser->id !== $user->id) {
             return back()->withErrors(['message' => 'Akses Ditolak: Anda hanya diizinkan mengubah data profil Anda sendiri.']);
         }
 
@@ -66,19 +74,36 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'password' => ['nullable', 'string', 'min:6'],
+            'avatar' => ['nullable', 'image', 'mimes:jpeg,png,jpg', 'max:2048'],
         ];
 
-        // Hak ubah role HANYA diberikan jika yang mengedit adalah Superadmin
-        if ($currentUser->role === 'superadmin') {
+        if (strtolower($currentUser->role) === 'superadmin') {
             $rules['role'] = ['required', Rule::in(['superadmin', 'admin'])];
         }
 
         $validated = $request->validate($rules);
 
+        // Jika password diisi, enkripsi. Jika kosong, hapus dari array agar tidak ikut di-update.
         if (!empty($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
         } else {
-            unset($validated['password']); // Hapus dari array jika password tidak diisi
+            unset($validated['password']); 
+        }
+
+        // LOGIKA UPDATE FOTO (PERBAIKAN BUG HILANG FOTO)
+        if ($request->hasFile('avatar')) {
+            // Hapus foto lama jika ada di folder public
+            if ($user->avatar && File::exists(public_path($user->avatar))) {
+                File::delete(public_path($user->avatar));
+            }
+            $file = $request->file('avatar');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $file->move(public_path('uploads/avatars'), $filename);
+            $validated['avatar'] = 'uploads/avatars/' . $filename;
+        } else {
+            // PERBAIKAN: Jika tidak ada file baru yang diunggah, JANGAN timpa foto lama dengan "null".
+            // Hapus 'avatar' dari array update.
+            unset($validated['avatar']);
         }
 
         $user->update($validated);
@@ -88,13 +113,17 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
-        // Otorisasi: Hanya superadmin yang boleh menghapus admin lain
-        if (auth()->user()->role !== 'superadmin') {
+        if (strtolower(auth()->user()->role) !== 'superadmin') {
             return back()->withErrors(['message' => 'Akses Ditolak: Hanya Super Admin yang dapat menghapus pengguna.']);
         }
 
         if (auth()->id() === $user->id) {
             return back()->withErrors(['message' => 'Aksi Ditolak: Anda tidak dapat menghapus akun Anda sendiri saat sedang login.']);
+        }
+
+        // Hapus foto profil dari storage jika ada
+        if ($user->avatar && File::exists(public_path($user->avatar))) {
+            File::delete(public_path($user->avatar));
         }
 
         $user->delete();

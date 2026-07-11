@@ -17,10 +17,29 @@ use Illuminate\Support\Str;
 
 class RabController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        // 1. Ambil data history RAB dengan Paginasi (Super Ringan)
-        $rabs = Rab::orderByDesc('tanggal')->paginate(10);
+        // 1. Ambil Parameter Pencarian dan Filter Tanggal
+        $query = Rab::query();
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('nama_menu', 'like', "%{$search}%")
+                  ->orWhere('tanggal', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('tgl_awal')) {
+            $query->whereDate('tanggal', '>=', $request->tgl_awal);
+        }
+
+        if ($request->filled('tgl_akhir')) {
+            $query->whereDate('tanggal', '<=', $request->tgl_akhir);
+        }
+
+        // Ambil data history RAB dengan Filter & Paginasi
+        $rabs = $query->orderByDesc('tanggal')->orderByDesc('id')->paginate(10)->withQueryString();
         
         // 2. Hitung realisasi dari PO (Hanya yang statusnya selesai/approved)
         $realisasi_po = PurchaseOrder::where('status', 'selesai')->sum('grand_total');
@@ -35,11 +54,12 @@ class RabController extends Controller
 
         return Inertia::render('rab/Index', [
             'rabs'          => $rabs,
-            // Operasional biasanya datanya tidak ribuan (hanya kategori), aman pakai get()
             'operasionals'  => MasterOperasional::orderByDesc('created_at')->get(),
             'realisasi_po'  => (float) $realisasi_po,
             'realisasi_ops' => (float) $realisasi_ops,
-            'total_pagu'    => $total_pagu
+            'total_pagu'    => $total_pagu,
+            // Kembalikan filter ke frontend agar state terjaga
+            'filters'       => $request->only(['search', 'tgl_awal', 'tgl_akhir']) 
         ]);
     }
 

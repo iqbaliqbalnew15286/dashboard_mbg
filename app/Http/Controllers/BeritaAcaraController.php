@@ -47,8 +47,9 @@ class BeritaAcaraController extends Controller
             'keterangan'        => $validated['keterangan'],
         ]);
 
-        // Opsional: Update status PO menjadi ba_created
-        PurchaseOrder::where('id', $validated['purchase_order_id'])->update(['status' => 'ba_created']);
+        // PERBAIKAN ERROR SQL 1265: 
+        // Mengubah 'ba_created' menjadi 'approved' agar sesuai dengan ENUM database
+        PurchaseOrder::where('id', $validated['purchase_order_id'])->update(['status' => 'approved']);
 
         return back()->with('success', 'Berita Acara berhasil diterbitkan.');
     }
@@ -57,9 +58,9 @@ class BeritaAcaraController extends Controller
     {
         $ba = BeritaAcara::findOrFail($id);
         
-        // Kembalikan status PO menjadi selesai/draft sebelum BA dihapus
+        // Kembalikan status PO menjadi draft sebelum BA dihapus agar bisa diproses ulang
         if ($ba->purchaseOrder) {
-            $ba->purchaseOrder->update(['status' => 'selesai']);
+            $ba->purchaseOrder->update(['status' => 'draft']);
         }
         
         $ba->delete();

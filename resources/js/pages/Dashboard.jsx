@@ -34,7 +34,11 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function Dashboard({ stats, trends, recentPos, criticalItems }) {
-    const safeCriticalItems = Array.isArray(criticalItems) ? criticalItems : [];
+    // FIX: Memastikan semua data yang akan di-map() adalah Array yang valid.
+    // Jika data terbungkus dalam pagination (.data), sistem akan otomatis mengambil isinya.
+    const safeCriticalItems = Array.isArray(criticalItems) ? criticalItems : (criticalItems?.data ? criticalItems.data : []);
+    const safeRecentPos = Array.isArray(recentPos) ? recentPos : (recentPos?.data ? recentPos.data : []);
+    const safeTrends = Array.isArray(trends) ? trends : (trends?.data ? trends.data : []);
 
     const { auth } = usePage().props;
     const user = auth?.user || { name: 'Admin', role: 'Administrator' };
@@ -138,7 +142,8 @@ export default function Dashboard({ stats, trends, recentPos, criticalItems }) {
                     <div className="h-[250px] w-full min-w-0 min-h-0 flex-1">
                         {mounted && (
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={trends || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                {/* Gunakan safeTrends di sini */}
+                                <AreaChart data={safeTrends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                     <defs>
                                         <linearGradient id="colorBlue" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>
@@ -171,7 +176,7 @@ export default function Dashboard({ stats, trends, recentPos, criticalItems }) {
                     </div>
                     
                     <div className="space-y-3 overflow-y-auto max-h-[220px] pr-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
-                        {!criticalItems || criticalItems.length === 0 ? (
+                        {safeCriticalItems.length === 0 ? (
                             <div className="text-center py-10 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
                                 <p className="text-sm font-black text-slate-500">Stok Gudang Aman</p>
                             </div>
@@ -223,14 +228,15 @@ export default function Dashboard({ stats, trends, recentPos, criticalItems }) {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 text-sm">
-                            {!recentPos || recentPos.length === 0 ? (
+                            {/* Gunakan safeRecentPos di sini */}
+                            {safeRecentPos.length === 0 ? (
                                 <tr>
                                     <td colSpan="5" className="py-12 text-center text-slate-400 font-medium">
                                         Belum Ada Riwayat Transaksi PO.
                                     </td>
                                 </tr>
                             ) : (
-                                recentPos.map((act, i) => {
+                                safeRecentPos.map((act, i) => {
                                     // Cari nama supplier dari relasi details (Jika ada)
                                     const supplierName = act.details && act.details[0] && act.details[0].supplier ? act.details[0].supplier.nama_perusahaan : '-';
                                     
