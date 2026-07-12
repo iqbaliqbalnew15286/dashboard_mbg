@@ -14,9 +14,12 @@
 /.zed
 /auth.json
 /node_modules
+
+# Baris di bawah ini saya matikan (comment) agar file React bisa masuk ke GitHub
 # /public/build
+# /public/hot
+
 /public/fonts-manifest.dev.json
-/public/hot
 /public/storage
 /storage/*.key
 /storage/pail
