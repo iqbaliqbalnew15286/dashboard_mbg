@@ -15,9 +15,11 @@
 /auth.json
 /node_modules
 
-# Baris di bawah ini saya matikan (comment) agar file React bisa masuk ke GitHub
+# Baris di bawah ini dipastikan agar public/build masuk ke GitHub tetapi public/hot diabaikan
 # /public/build
-# /public/hot
+/public/hot
+/composer.json
+/composer.lock
 
 /public/fonts-manifest.dev.json
 /public/storage
