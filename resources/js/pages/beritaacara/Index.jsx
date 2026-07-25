@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
+import SearchableSelect from '../../Components/SearchableSelect';
 
 export default function BeritaAcaraIndex() {
   const { props } = usePage();
@@ -163,15 +164,20 @@ export default function BeritaAcaraIndex() {
           </div>
           
           <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-            <select 
-              className="w-full sm:w-[160px] bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 font-bold text-xs text-slate-700 outline-none focus:border-blue-500 transition-all cursor-pointer appearance-none"
-              value={filterKategori} onChange={(e) => setFilterKategori(e.target.value)}
-            >
-              <option value="">Semua Kategori</option>
-              <option value="Bahan Baku">Bahan Baku</option>
-              <option value="Operasional">Operasional</option>
-              <option value="Insentif Fasilitas">Insentif Fasilitas</option>
-            </select>
+            <div className="w-full sm:w-[180px]">
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'Semua Kategori' },
+                  { value: 'Bahan Baku', label: 'Bahan Baku' },
+                  { value: 'Operasional', label: 'Operasional' },
+                  { value: 'Insentif Fasilitas', label: 'Insentif Fasilitas' }
+                ]}
+                value={filterKategori}
+                onChange={(val) => setFilterKategori(val)}
+                placeholder="Semua Kategori"
+                searchPlaceholder="Cari kategori..."
+              />
+            </div>
 
             <div className="flex flex-1 sm:flex-none items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-500 transition-all">
               <span className="pl-3 pr-2 text-slate-400"><Calendar size={14}/></span>
@@ -361,12 +367,13 @@ export default function BeritaAcaraIndex() {
                 <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-5 space-y-4">
                   <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Pilih Nomor PO (Tersedia) <span className="text-rose-500">*</span></label>
-                    <select required value={form.purchase_order_id} onChange={(e) => setForm({...form, purchase_order_id: e.target.value})} className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl p-3.5 font-bold text-sm outline-none shadow-sm transition-all cursor-pointer appearance-none">
-                      <option value="">Pilih No PO...</option>
-                      {availablePos.map(po => (
-                        <option key={po.id} value={po.id}>{po.nomor_po} - {po.kategori_biaya}</option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      options={availablePos.map(po => ({ value: po.id, label: po.nomor_po, sublabel: po.kategori_biaya }))}
+                      value={form.purchase_order_id}
+                      onChange={(val) => setForm({ ...form, purchase_order_id: val })}
+                      placeholder="Pilih No PO..."
+                      searchPlaceholder="Cari nomor PO..."
+                    />
                     <p className="text-[10px] text-slate-400 mt-2 font-medium">Hanya menampilkan PO yang belum memiliki Berita Acara.</p>
                   </div>
 

@@ -3,7 +3,7 @@ import { useForm, router } from '@inertiajs/react';
 import {
     Plus, Edit2, Trash2, X, Database, Search,
     Wallet, ChevronDown, Loader2, CheckCircle2,
-    XCircle, AlertTriangle, TrendingUp
+    XCircle, AlertTriangle, TrendingUp, FileSpreadsheet, Download, Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -13,6 +13,11 @@ export default function OperasionalPage({ operasionals, filters, stats = { total
     const [searchQuery, setSearchQuery] = useState(filters?.search || '');
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
+
+    // State Import Excel
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [excelFile, setExcelFile] = useState(null);
+    const [uploadingExcel, setUploadingExcel] = useState(false);
 
     const [showSatuanMenu, setShowSatuanMenu] = useState(false);
     const [customSatuan, setCustomSatuan] = useState('');
@@ -125,6 +130,30 @@ export default function OperasionalPage({ operasionals, filters, stats = { total
         });
     };
 
+    const handleImportSubmit = (e) => {
+        e.preventDefault();
+        if (!excelFile) return showToast('Pilih file Excel terlebih dahulu!', 'error');
+
+        setUploadingExcel(true);
+        showToast('Mengunggah & Memproses Excel...', 'loading');
+
+        const formData = new FormData();
+        formData.append('file', excelFile);
+
+        router.post('/master/operasional/import', formData, {
+            onSuccess: () => {
+                setUploadingExcel(false);
+                setIsImportModalOpen(false);
+                setExcelFile(null);
+                showToast('Import Excel Berhasil!', 'success');
+            },
+            onError: (err) => {
+                setUploadingExcel(false);
+                showToast(err.message || 'Gagal mengimpor file Excel.', 'error');
+            }
+        });
+    };
+
     return (
         <div className="w-full pb-10 font-['Plus_Jakarta_Sans',sans-serif] relative space-y-6">
             
@@ -151,17 +180,34 @@ export default function OperasionalPage({ operasionals, filters, stats = { total
                     <h2 className="text-2xl font-bold text-slate-800">Master Operasional</h2>
                     <p className="text-slate-500 text-sm mt-1">Kelola data kategori biaya operasional dan insentif.</p>
                 </div>
-                <div className="flex gap-3 w-full lg:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="relative flex-1">
+                <div className="flex flex-wrap gap-2 w-full lg:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+                    <div className="relative flex-1 min-w-[180px]">
                         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
                             type="text" placeholder="Cari kode atau nama..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm font-bold outline-none w-full lg:w-72 focus:ring-2 focus:ring-blue-100"
+                            className="pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm font-bold outline-none w-full focus:ring-2 focus:ring-blue-100"
                         />
                     </div>
                     <button
+                        type="button"
+                        onClick={() => window.location.href = '/master/operasional/export'}
+                        className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
+                        title="Export Data ke Excel"
+                    >
+                        <Download size={16} /> Export
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setIsImportModalOpen(true)}
+                        className="bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
+                        title="Import Data dari Excel"
+                    >
+                        <Upload size={16} /> Import Excel
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => openModal()}
-                        className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center gap-2 shadow-md shrink-0"
+                        className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center gap-2 shadow-md shrink-0"
                     >
                         <Plus size={18} /> Tambah
                     </button>
@@ -423,6 +469,88 @@ export default function OperasionalPage({ operasionals, filters, stats = { total
                                 <button onClick={() => { setIsDeleteModalOpen(false); setItemToDelete(null); }} className="flex-1 py-3.5 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-colors">Batal</button>
                                 <button onClick={handleDelete} className="flex-1 py-3.5 bg-rose-600 text-white font-bold rounded-2xl hover:bg-rose-700 transition-colors">Hapus</button>
                             </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* MODAL IMPORT EXCEL */}
+            <AnimatePresence>
+                {isImportModalOpen && (
+                    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl"
+                        >
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                                        <FileSpreadsheet className="text-emerald-600" size={24} /> Import Master Operasional
+                                    </h2>
+                                    <p className="text-xs text-slate-500 font-medium mt-1">Upload file Excel (.xlsx, .xls, .csv) sesuai format tabel.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => { setIsImportModalOpen(false); setExcelFile(null); }}
+                                    className="p-2 bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 transition-colors"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleImportSubmit} className="space-y-5">
+                                <div className="bg-blue-50/60 border border-blue-100 p-4 rounded-2xl flex items-center justify-between">
+                                    <div>
+                                        <p className="text-xs font-black text-blue-900">Belum punya format Excel?</p>
+                                        <p className="text-[11px] text-blue-700 font-medium">Download template acuan berikut.</p>
+                                    </div>
+                                    <a
+                                        href="/master/operasional/template"
+                                        className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
+                                    >
+                                        <Download size={14} /> Download Template
+                                    </a>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Pilih Berkas Excel</label>
+                                    <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors bg-slate-50/50">
+                                        <Upload className="mx-auto text-slate-400 mb-2" size={32} />
+                                        <input
+                                            type="file"
+                                            accept=".xlsx,.xls,.csv"
+                                            required
+                                            onChange={(e) => setExcelFile(e.target.files[0] || null)}
+                                            className="w-full text-xs text-slate-600 font-bold file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                                        />
+                                        {excelFile && (
+                                            <p className="text-xs font-black text-emerald-600 mt-2">
+                                                File terpilih: {excelFile.name}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="pt-2 flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setIsImportModalOpen(false); setExcelFile(null); }}
+                                        className="w-1/3 bg-slate-100 text-slate-600 font-black text-xs uppercase tracking-widest py-3.5 rounded-2xl hover:bg-slate-200 transition-colors"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={uploadingExcel || !excelFile}
+                                        className="w-2/3 bg-emerald-600 text-white font-black text-xs uppercase tracking-widest py-3.5 rounded-2xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-600/30 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        {uploadingExcel ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                                        {uploadingExcel ? 'Mengunggah...' : 'Upload & Import'}
+                                    </button>
+                                </div>
+                            </form>
                         </motion.div>
                     </div>
                 )}

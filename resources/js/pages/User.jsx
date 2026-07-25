@@ -23,8 +23,8 @@ const UserIndex = ({ users = [], stats }) => {
     const [viewingImage, setViewingImage] = useState(null);
 
     // Inertia Form Setup
-    const { data, setData, post, processing, errors, reset, clearErrors } = useForm({
-        name: '', email: '', password: '', role: 'admin', avatar: null
+    const { data, setData, post, delete: destroy, processing, errors, reset, clearErrors } = useForm({
+        name: '', email: '', password: '', role: 'admin', avatar: null, delete_avatar: false
     });
 
     const fileInputRef = useRef(null);
@@ -81,11 +81,11 @@ const UserIndex = ({ users = [], stats }) => {
         
         if (user) {
             setEditingUser(user);
-            setData({ name: user.name, email: user.email, role: user.role, password: '', avatar: null });
+            setData({ name: user.name, email: user.email, role: user.role, password: '', avatar: null, delete_avatar: false });
             if (user.avatar) setPreviewUrl(`/${user.avatar}`);
         } else {
             setEditingUser(null);
-            setData({ name: '', email: '', password: '', role: 'admin', avatar: null });
+            setData({ name: '', email: '', password: '', role: 'admin', avatar: null, delete_avatar: false });
         }
         setIsModalOpen(true);
     };
@@ -102,9 +102,15 @@ const UserIndex = ({ users = [], stats }) => {
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (file) {
-            setData('avatar', file);
+            setData((prev) => ({ ...prev, avatar: file, delete_avatar: false }));
             setPreviewUrl(URL.createObjectURL(file));
         }
+    };
+
+    const handleRemovePhoto = () => {
+        setData((prev) => ({ ...prev, avatar: null, delete_avatar: true }));
+        setPreviewUrl(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const handleSubmit = (e) => {
@@ -371,6 +377,15 @@ const UserIndex = ({ users = [], stats }) => {
                                         onChange={handleFileChange}
                                     />
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-3">Foto Profil (Opsional)</p>
+                                    {(previewUrl || (editingUser && editingUser.avatar && !data.delete_avatar)) && (
+                                        <button
+                                            type="button"
+                                            onClick={handleRemovePhoto}
+                                            className="mt-2 text-xs font-black text-rose-500 hover:text-rose-700 flex items-center gap-1.5 px-3 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
+                                        >
+                                            <Trash2 size={13} /> Hapus Foto Profil
+                                        </button>
+                                    )}
                                     {errors.avatar && <span className="text-rose-500 text-xs font-bold mt-1 block">{errors.avatar}</span>}
                                 </div>
 

@@ -52,8 +52,16 @@ Route::middleware('auth')->group(function () {
     // MASTER DATA
     // ==========================================
     Route::prefix('master')->name('master.')->group(function () {
+        Route::post('bahan-baku/import', [MasterBahanBakuController::class, 'import'])->name('bahan-baku.import');
+        Route::get('bahan-baku/export', [MasterBahanBakuController::class, 'export'])->name('bahan-baku.export');
+        Route::get('bahan-baku/template', [MasterBahanBakuController::class, 'template'])->name('bahan-baku.template');
         Route::resource('bahan-baku', MasterBahanBakuController::class);
+
+        Route::post('operasional/import', [MasterOperasionalController::class, 'import'])->name('operasional.import');
+        Route::get('operasional/export', [MasterOperasionalController::class, 'export'])->name('operasional.export');
+        Route::get('operasional/template', [MasterOperasionalController::class, 'template'])->name('operasional.template');
         Route::resource('operasional', MasterOperasionalController::class);
+
         Route::resource('supplier', SupplierController::class);
     });
 

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import SearchableSelect from '../../Components/SearchableSelect';
 
 export default function RabCreate() {
     const { props } = usePage();
@@ -189,18 +190,24 @@ export default function RabCreate() {
                                     
                                     <div className="w-full md:w-[30%]">
                                         <label className="text-[10px] font-black uppercase text-slate-400 block mb-1.5 ml-1">Bahan Baku</label>
-                                        <select required value={item.bahan_baku_id} onChange={(e) => handleItemChange(item.id, 'bahan_baku_id', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-sm text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all">
-                                            <option value="">Pilih Bahan...</option>
-                                            {bahan_bakus.map(b => <option key={b.id} value={b.id}>{b.nama_barang}</option>)}
-                                        </select>
+                                        <SearchableSelect
+                                            options={bahan_bakus.map(b => ({ value: b.id, label: b.nama_barang, sublabel: b.kode_barang }))}
+                                            value={item.bahan_baku_id}
+                                            onChange={(val) => handleItemChange(item.id, 'bahan_baku_id', val)}
+                                            placeholder="Pilih Bahan..."
+                                            searchPlaceholder="Cari bahan baku..."
+                                        />
                                     </div>
                                     
                                     <div className="w-full md:w-[25%]">
                                         <label className="text-[10px] font-black uppercase text-slate-400 block mb-1.5 ml-1 flex items-center gap-1"><Truck size={10}/> Supplier</label>
-                                        <select required value={item.supplier_id} onChange={(e) => handleItemChange(item.id, 'supplier_id', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-sm text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-all">
-                                            <option value="">Pilih Supplier...</option>
-                                            {suppliers.map(s => <option key={s.id} value={s.id}>{s.nama_perusahaan}</option>)}
-                                        </select>
+                                        <SearchableSelect
+                                            options={suppliers.map(s => ({ value: s.id, label: s.nama_perusahaan }))}
+                                            value={item.supplier_id}
+                                            onChange={(val) => handleItemChange(item.id, 'supplier_id', val)}
+                                            placeholder="Pilih Supplier..."
+                                            searchPlaceholder="Cari supplier..."
+                                        />
                                     </div>
                                     
                                     <div className="w-full md:w-[15%] flex gap-3">

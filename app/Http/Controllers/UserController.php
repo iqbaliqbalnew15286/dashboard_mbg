@@ -90,8 +90,13 @@ class UserController extends Controller
             unset($validated['password']); 
         }
 
-        // LOGIKA UPDATE FOTO (PERBAIKAN BUG HILANG FOTO)
-        if ($request->hasFile('avatar')) {
+        // LOGIKA UPDATE / HAPUS FOTO
+        if ($request->boolean('delete_avatar') || $request->input('delete_avatar') === '1' || $request->input('delete_avatar') === 'true') {
+            if ($user->avatar && File::exists(public_path($user->avatar))) {
+                File::delete(public_path($user->avatar));
+            }
+            $validated['avatar'] = null;
+        } elseif ($request->hasFile('avatar')) {
             // Hapus foto lama jika ada di folder public
             if ($user->avatar && File::exists(public_path($user->avatar))) {
                 File::delete(public_path($user->avatar));
@@ -101,8 +106,7 @@ class UserController extends Controller
             $file->move(public_path('uploads/avatars'), $filename);
             $validated['avatar'] = 'uploads/avatars/' . $filename;
         } else {
-            // PERBAIKAN: Jika tidak ada file baru yang diunggah, JANGAN timpa foto lama dengan "null".
-            // Hapus 'avatar' dari array update.
+            // Jika tidak ada file baru dan tidak ada perintah hapus, jangan timpa foto lama
             unset($validated['avatar']);
         }
 

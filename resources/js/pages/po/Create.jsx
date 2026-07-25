@@ -3,6 +3,7 @@ import { usePage, router } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, RotateCcw, Search, Save, X, Printer, AlertTriangle } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
+import SearchableSelect from '../../Components/SearchableSelect';
 
 // Jika Anda menggunakan AdminLayout, uncomment baris di bawah dan bungkus return dengan <AdminLayout>
 // import AdminLayout from '../../layouts/AdminLayout';
@@ -115,17 +116,18 @@ export default function PoCreate() {
         <div className="bg-white rounded-[2rem] border border-slate-200/60 p-8 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Kategori Biaya <span className="text-rose-500">*</span></label>
-            <select 
-              required 
-              value={form.kategori_biaya} 
-              onChange={(e) => setForm(p => ({ ...p, kategori_biaya: e.target.value }))} 
-              className={`w-full bg-slate-50 border ${errors.kategori_biaya ? 'border-rose-500' : 'border-slate-200'} rounded-2xl p-4 font-bold text-sm text-slate-800 focus:border-blue-500 transition-all outline-none`}
-            >
-              <option value="" disabled>Pilih Kategori...</option>
-              <option value="Bahan Baku">Bahan Baku</option>
-              <option value="Operasional">Operasional</option>
-              <option value="Insentif Fasilitas">Insentif Fasilitas</option>
-            </select>
+            <SearchableSelect
+              options={[
+                { value: 'Bahan Baku', label: 'Bahan Baku' },
+                { value: 'Operasional', label: 'Operasional' },
+                { value: 'Insentif Fasilitas', label: 'Insentif Fasilitas' }
+              ]}
+              value={form.kategori_biaya}
+              onChange={(val) => setForm(p => ({ ...p, kategori_biaya: val }))}
+              placeholder="Pilih Kategori..."
+              searchPlaceholder="Cari kategori..."
+              error={!!errors.kategori_biaya}
+            />
             {errors.kategori_biaya && <p className="text-rose-500 text-xs mt-1 font-bold">{errors.kategori_biaya}</p>}
           </div>
 
@@ -199,26 +201,22 @@ export default function PoCreate() {
                     <tr key={idx} className="align-middle group">
                       <td className="px-2 py-2 text-center font-bold text-slate-400">{idx + 1}</td>
                       <td className="px-2 py-2">
-                        <select 
-                          required 
-                          value={item.bahan_baku_id} 
-                          onChange={(e) => handleItemChange(idx, 'bahan_baku_id', e.target.value)} 
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-sm text-slate-700 outline-none focus:border-blue-500"
-                        >
-                          <option value="">Pilih Barang...</option>
-                          {bahanBakus.map(b => <option key={b.id} value={b.id}>{b.nama_barang}</option>)}
-                        </select>
+                        <SearchableSelect
+                          options={bahanBakus.map(b => ({ value: b.id, label: b.nama_barang, sublabel: b.kode_barang }))}
+                          value={item.bahan_baku_id}
+                          onChange={(val) => handleItemChange(idx, 'bahan_baku_id', val)}
+                          placeholder="Pilih Barang..."
+                          searchPlaceholder="Cari barang..."
+                        />
                       </td>
                       <td className="px-2 py-2">
-                        <select 
-                          required 
-                          value={item.supplier_id} 
-                          onChange={(e) => handleItemChange(idx, 'supplier_id', e.target.value)} 
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-sm text-slate-700 outline-none focus:border-blue-500"
-                        >
-                          <option value="">Pilih Supplier...</option>
-                          {suppliers.map(s => <option key={s.id} value={s.id}>{s.nama_perusahaan}</option>)}
-                        </select>
+                        <SearchableSelect
+                          options={suppliers.map(s => ({ value: s.id, label: s.nama_perusahaan }))}
+                          value={item.supplier_id}
+                          onChange={(val) => handleItemChange(idx, 'supplier_id', val)}
+                          placeholder="Pilih Supplier..."
+                          searchPlaceholder="Cari supplier..."
+                        />
                       </td>
                       <td className="px-2 py-2">
                         <input 
