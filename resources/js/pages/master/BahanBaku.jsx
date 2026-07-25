@@ -14,6 +14,11 @@ export default function BahanBaku({ bahan_bakus, filters, stats = { total_barang
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
 
+    // State Hapus Massal (Bulk Delete)
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [selectAllGlobal, setSelectAllGlobal] = useState(false);
+    const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+
     // State Import Excel
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [excelFile, setExcelFile] = useState(null);
@@ -127,6 +132,45 @@ export default function BahanBaku({ bahan_bakus, filters, stats = { total_barang
                 showToast('Data dihapus!', 'success');
                 setIsDeleteModalOpen(false);
                 setItemToDelete(null);
+            }
+        });
+    };
+
+    // Handler Hapus Massal
+    const handleSelectAllPage = (e) => {
+        if (e.target.checked) {
+            const pageIds = (bahan_bakus?.data || []).map(item => item.id);
+            setSelectedIds(pageIds);
+        } else {
+            setSelectedIds([]);
+            setSelectAllGlobal(false);
+        }
+    };
+
+    const handleSelectRow = (id) => {
+        setSelectedIds(prev => {
+            const exists = prev.includes(id);
+            const next = exists ? prev.filter(i => i !== id) : [...prev, id];
+            if (exists) setSelectAllGlobal(false);
+            return next;
+        });
+    };
+
+    const handleBulkDelete = () => {
+        showToast('Menghapus data massal...', 'loading');
+        router.post('/master/bahan-baku/bulk-delete', {
+            ids: selectedIds,
+            select_all_matching: selectAllGlobal,
+            search: searchQuery
+        }, {
+            onSuccess: () => {
+                showToast('Data berhasil dihapus secara massal!', 'success');
+                setSelectedIds([]);
+                setSelectAllGlobal(false);
+                setIsBulkDeleteModalOpen(false);
+            },
+            onError: (err) => {
+                showToast(err?.message || 'Gagal menghapus data.', 'error');
             }
         });
     };
@@ -247,13 +291,73 @@ export default function BahanBaku({ bahan_bakus, filters, stats = { total_barang
                 </div>
             </div>
 
+            {/* FLOATING ACTION BAR FOR BULK DELETE */}
+            <AnimatePresence>
+                {(selectedIds.length > 0 || selectAllGlobal) && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl border border-slate-800 flex items-center gap-4 max-w-xl w-[90%]"
+                    >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <span className="bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-black px-3 py-1 rounded-xl shrink-0">
+                                {selectAllGlobal ? stats.total_barang : selectedIds.length} Terpilih
+                            </span>
+                            <span className="text-xs font-bold text-slate-300 truncate hidden sm:inline">
+                                {selectAllGlobal 
+                                    ? `Semua ${stats.total_barang} SKU terpilih` 
+                                    : `${selectedIds.length} item dari halaman ini`
+                                }
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            {!selectAllGlobal && bahan_bakus?.total > selectedIds.length && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectAllGlobal(true)}
+                                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all"
+                                >
+                                    Pilih Semua ({stats.total_barang})
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => { setSelectedIds([]); setSelectAllGlobal(false); }}
+                                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsBulkDeleteModalOpen(true)}
+                                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-lg shadow-rose-600/30"
+                            >
+                                <Trash2 size={14} /> Hapus
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* TABLE */}
             <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-slate-50 border-b border-slate-100 text-[10px] uppercase font-black text-slate-400 tracking-widest">
                             <tr>
-                                <th className="px-8 py-5 w-16">No</th>
+                                <th className="px-5 py-5 w-12 text-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={
+                                            bahan_bakus?.data?.length > 0 &&
+                                            bahan_bakus.data.every(item => selectedIds.includes(item.id))
+                                        }
+                                        onChange={handleSelectAllPage}
+                                        className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                                    />
+                                </th>
+                                <th className="px-6 py-5 w-16">No</th>
                                 <th className="px-6 py-5">Kode</th>
                                 <th className="px-6 py-5">Nama Barang</th>
                                 <th className="px-6 py-5 text-center">Satuan</th>
@@ -265,40 +369,54 @@ export default function BahanBaku({ bahan_bakus, filters, stats = { total_barang
                         <tbody className="divide-y divide-slate-50 text-sm">
                             {!bahan_bakus || !bahan_bakus.data || bahan_bakus.data.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" className="py-20 text-center text-slate-400">
+                                    <td colSpan="8" className="py-20 text-center text-slate-400">
                                         <Database className="mx-auto h-10 w-10 opacity-20 mb-3" />
                                         <p className="font-bold text-base">Tidak ada data ditemukan</p>
                                     </td>
                                 </tr>
                             ) : (
-                                bahan_bakus.data.map((item, index) => (
-                                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                                        <td className="px-8 py-5 font-bold text-slate-400">{bahan_bakus.from + index}</td>
-                                        <td className="px-6 py-5 font-black text-blue-600">#{item.kode_barang}</td>
-                                        <td className="px-6 py-5 font-bold text-slate-800">{item.nama_barang}</td>
-                                        <td className="px-6 py-5 text-center">
-                                            <span className="bg-white border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">{item.satuan}</span>
-                                        </td>
-                                        <td className="px-6 py-5 font-bold text-slate-700 text-right">{formatRp(item.harga_beli_awal)}</td>
-                                        <td className="px-6 py-5 font-black text-slate-800 text-center bg-slate-50/50">{formatRibuan(item.saldo_awal)}</td>
-                                        <td className="px-8 py-5 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <button
-                                                    onClick={() => openModal(item)}
-                                                    className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all"
-                                                >
-                                                    <Edit2 size={15} />
-                                                </button>
-                                                <button
-                                                    onClick={() => { setItemToDelete(item); setIsDeleteModalOpen(true); }}
-                                                    className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all"
-                                                >
-                                                    <Trash2 size={15} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                bahan_bakus.data.map((item, index) => {
+                                    const isRowSelected = selectedIds.includes(item.id) || selectAllGlobal;
+                                    return (
+                                        <tr 
+                                            key={item.id} 
+                                            className={`transition-colors ${isRowSelected ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-slate-50/80'}`}
+                                        >
+                                            <td className="px-5 py-5 text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isRowSelected}
+                                                    onChange={() => handleSelectRow(item.id)}
+                                                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                                                />
+                                            </td>
+                                            <td className="px-6 py-5 font-bold text-slate-400">{bahan_bakus.from + index}</td>
+                                            <td className="px-6 py-5 font-black text-blue-600">#{item.kode_barang}</td>
+                                            <td className="px-6 py-5 font-bold text-slate-800">{item.nama_barang}</td>
+                                            <td className="px-6 py-5 text-center">
+                                                <span className="bg-white border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">{item.satuan}</span>
+                                            </td>
+                                            <td className="px-6 py-5 font-bold text-slate-700 text-right">{formatRp(item.harga_beli_awal)}</td>
+                                            <td className="px-6 py-5 font-black text-slate-800 text-center bg-slate-50/50">{formatRibuan(item.saldo_awal)}</td>
+                                            <td className="px-8 py-5 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <button
+                                                        onClick={() => openModal(item)}
+                                                        className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all"
+                                                    >
+                                                        <Edit2 size={15} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => { setItemToDelete(item); setIsDeleteModalOpen(true); }}
+                                                        className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all"
+                                                    >
+                                                        <Trash2 size={15} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
@@ -547,6 +665,47 @@ export default function BahanBaku({ bahan_bakus, filters, stats = { total_barang
                                     className="flex-1 py-3.5 bg-rose-600 text-white font-bold rounded-2xl hover:bg-rose-700 transition-colors"
                                 >
                                     Hapus
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* MODAL HAPUS MASSAL */}
+            <AnimatePresence>
+                {isBulkDeleteModalOpen && (
+                    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="bg-white rounded-[2rem] p-8 w-full max-w-md text-center shadow-2xl border border-rose-100"
+                        >
+                            <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
+                                <AlertTriangle size={32} />
+                            </div>
+                            <h3 className="text-xl font-black text-slate-800 mb-2">Hapus Massal Data?</h3>
+                            <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                                Apakah Anda yakin ingin menghapus <span className="font-black text-rose-600 text-base">{selectAllGlobal ? stats.total_barang : selectedIds.length}</span> item bahan baku terpilih secara permanen?
+                            </p>
+                            <div className="bg-rose-50/70 border border-rose-100 p-4 rounded-2xl mb-7 text-xs font-bold text-rose-700 text-left">
+                                ⚠️ Perhatian: Data yang telah dihapus tidak dapat dipulihkan kembali.
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsBulkDeleteModalOpen(false)}
+                                    className="flex-1 py-3.5 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-colors text-xs uppercase tracking-wider"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleBulkDelete}
+                                    className="flex-1 py-3.5 bg-rose-600 text-white font-bold rounded-2xl hover:bg-rose-700 transition-colors text-xs uppercase tracking-wider shadow-lg shadow-rose-600/30"
+                                >
+                                    Hapus Permanen
                                 </button>
                             </div>
                         </motion.div>

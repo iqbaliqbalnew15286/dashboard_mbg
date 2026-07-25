@@ -12,6 +12,15 @@ export default function BeritaAcaraIndex() {
   const { props } = usePage();
   const bas = props.bas || [];
   const availablePos = props.available_pos || [];
+  const kategoriBiayasProp = props.kategori_biayas || [];
+
+  const defaultKategoris = ['Bahan Baku', 'Operasional', 'Insentif Fasilitas'];
+  const kategoriOptions = [
+    { value: '', label: 'Semua Kategori' },
+    ...(kategoriBiayasProp.length > 0
+      ? kategoriBiayasProp.map(k => ({ value: k.nama_kategori, label: k.nama_kategori }))
+      : defaultKategoris.map(k => ({ value: k, label: k })))
+  ];
 
   // 1. Ambil pengaturan global dari Inertia
   const { pengaturanGlobal = {} } = props;
@@ -166,12 +175,7 @@ export default function BeritaAcaraIndex() {
           <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
             <div className="w-full sm:w-[180px]">
               <SearchableSelect
-                options={[
-                  { value: '', label: 'Semua Kategori' },
-                  { value: 'Bahan Baku', label: 'Bahan Baku' },
-                  { value: 'Operasional', label: 'Operasional' },
-                  { value: 'Insentif Fasilitas', label: 'Insentif Fasilitas' }
-                ]}
+                options={kategoriOptions}
                 value={filterKategori}
                 onChange={(val) => setFilterKategori(val)}
                 placeholder="Semua Kategori"

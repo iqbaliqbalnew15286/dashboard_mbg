@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, Package, ClipboardList, Users, 
   Building2, LogOut, ChevronLeft, Settings, Wallet, Database, 
-  FileEdit, FileSignature, PieChart, ListOrdered, Truck
+  FileEdit, FileSignature, PieChart, ListOrdered, Truck, Tag
 } from 'lucide-react';
 
 const MENU_SECTIONS = [
@@ -25,6 +25,7 @@ const MENU_SECTIONS = [
       { name: 'Bahan Baku', path: '/master/bahan-baku', icon: <Database size={20} /> },
       { name: 'Operasional', path: '/master/operasional', icon: <Building2 size={20} /> },
       { name: 'Supplier', path: '/master/supplier', icon: <Truck size={20} /> },
+      { name: 'Kategori Biaya', path: '/master/kategori', icon: <Tag size={20} /> },
     ]
   },
   {

@@ -74,6 +74,44 @@ class MasterBahanBakuController extends Controller
         return back()->with('success', 'Bahan baku berhasil dihapus');
     }
 
+    public function bulkDestroy(Request $request)
+    {
+        $request->validate([
+            'ids' => 'nullable|array',
+            'ids.*' => 'integer|exists:master_bahan_bakus,id',
+            'select_all_matching' => 'nullable|boolean',
+            'search' => 'nullable|string',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            if ($request->boolean('select_all_matching')) {
+                $query = MasterBahanBaku::query();
+                if ($request->filled('search')) {
+                    $search = $request->search;
+                    $query->where(function ($q) use ($search) {
+                        $q->where('nama_barang', 'like', '%' . $search . '%')
+                          ->orWhere('kode_barang', 'like', '%' . $search . '%');
+                    });
+                }
+                $deletedCount = $query->delete();
+            } else {
+                $ids = $request->input('ids', []);
+                if (empty($ids)) {
+                    return back()->withErrors(['message' => 'Tidak ada data yang dipilih untuk dihapus.']);
+                }
+                $deletedCount = MasterBahanBaku::whereIn('id', $ids)->delete();
+            }
+
+            DB::commit();
+            return back()->with('success', "Berhasil menghapus {$deletedCount} data bahan baku.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['message' => 'Gagal menghapus data: ' . $e->getMessage()]);
+        }
+    }
+
+
     public function export()
     {
         $items = MasterBahanBaku::all();

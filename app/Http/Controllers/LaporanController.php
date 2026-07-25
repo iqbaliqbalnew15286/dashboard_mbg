@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PurchaseOrder;
+use App\Models\KategoriBiaya;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -11,7 +12,9 @@ class LaporanController extends Controller
     // Menampilkan halaman utama laporan
     public function index()
     {
-        return Inertia::render('laporan/Index');
+        return Inertia::render('laporan/Index', [
+            'kategori_biayas' => KategoriBiaya::all()
+        ]);
     }
 
     // Endpoint API untuk mengambil data transaksi berdasarkan filter (POST)

@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, ChevronDown, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -15,8 +16,11 @@ export default function SearchableSelect({
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const containerRef = useRef(null);
+    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0, openUpward: false });
+    
+    const triggerRef = useRef(null);
     const searchInputRef = useRef(null);
+    const dropdownRef = useRef(null);
 
     // Normalize options format to array of objects { value, label, sublabel }
     const normalizedOptions = options.map(opt => {
@@ -42,20 +46,73 @@ export default function SearchableSelect({
         );
     });
 
+    // Calculate smart positioning (viewport relative)
+    const updatePosition = useCallback(() => {
+        if (!triggerRef.current) return;
+        const rect = triggerRef.current.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const estimatedDropdownHeight = 280; // Estimated max height of dropdown
+
+        const spaceBelow = viewportHeight - rect.bottom;
+        const spaceAbove = rect.top;
+
+        const openUpward = spaceBelow < estimatedDropdownHeight && spaceAbove > spaceBelow;
+
+        setCoords({
+            top: openUpward ? rect.top - 6 : rect.bottom + 6,
+            left: rect.left,
+            width: Math.max(rect.width, 240), // Minimum width 240px for readable text
+            openUpward
+        });
+    }, []);
+
+    const toggleOpen = () => {
+        if (disabled) return;
+        if (!isOpen) {
+            updatePosition();
+        }
+        setIsOpen(!isOpen);
+    };
+
+    // Close on outside click
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (containerRef.current && !containerRef.current.contains(event.target)) {
+            if (
+                triggerRef.current && !triggerRef.current.contains(event.target) &&
+                dropdownRef.current && !dropdownRef.current.contains(event.target)
+            ) {
                 setIsOpen(false);
             }
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
 
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen]);
+
+    // Recalculate on scroll or window resize
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleScrollOrResize = () => {
+            updatePosition();
+        };
+
+        window.addEventListener('scroll', handleScrollOrResize, true);
+        window.addEventListener('resize', handleScrollOrResize);
+
+        return () => {
+            window.removeEventListener('scroll', handleScrollOrResize, true);
+            window.removeEventListener('resize', handleScrollOrResize);
+        };
+    }, [isOpen, updatePosition]);
+
+    // Focus search input when dropdown opens
     useEffect(() => {
         if (isOpen && searchInputRef.current) {
             setTimeout(() => searchInputRef.current?.focus(), 50);
-        } else {
+        } else if (!isOpen) {
             setSearchTerm('');
         }
     }, [isOpen]);
@@ -75,10 +132,10 @@ export default function SearchableSelect({
     };
 
     return (
-        <div className={`relative w-full ${className}`} ref={containerRef}>
+        <div className={`relative w-full ${className}`} ref={triggerRef}>
             {/* Trigger Button */}
             <div
-                onClick={() => !disabled && setIsOpen(!isOpen)}
+                onClick={toggleOpen}
                 className={`w-full bg-slate-50 border ${
                     error
                         ? 'border-rose-400 focus:ring-rose-400/20'
@@ -121,18 +178,27 @@ export default function SearchableSelect({
                 </div>
             </div>
 
-            {/* Dropdown Menu */}
-            <AnimatePresence>
-                {isOpen && (
+            {/* Dropdown Menu Portaled to document.body */}
+            {isOpen && typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
                     <motion.div
-                        initial={{ opacity: 0, y: -4, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 4, scale: 1 }}
-                        exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                        ref={dropdownRef}
+                        initial={{ opacity: 0, y: coords.openUpward ? 6 : -6, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: coords.openUpward ? 6 : -6, scale: 0.98 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute z-[999] left-0 right-0 top-full bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden mt-1 max-h-72 flex flex-col"
+                        style={{
+                            position: 'fixed',
+                            top: coords.openUpward ? 'auto' : `${coords.top}px`,
+                            bottom: coords.openUpward ? `${window.innerHeight - coords.top}px` : 'auto',
+                            left: `${coords.left}px`,
+                            width: `${coords.width}px`,
+                            zIndex: 99999
+                        }}
+                        className="bg-white border border-slate-200/90 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-72 border-t border-slate-100 ring-1 ring-black/5"
                     >
                         {/* Search Bar Input */}
-                        <div className="p-2 border-b border-slate-100 bg-slate-50/50 sticky top-0 z-10">
+                        <div className="p-2 border-b border-slate-100 bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10">
                             <div className="relative flex items-center">
                                 <Search size={16} className="absolute left-3 text-blue-500 pointer-events-none" />
                                 <input
@@ -149,7 +215,7 @@ export default function SearchableSelect({
                         {/* Options List */}
                         <div className="overflow-y-auto p-1.5 space-y-0.5 max-h-56">
                             {filteredOptions.length === 0 ? (
-                                <div className="py-4 text-center text-slate-400 text-xs font-bold">
+                                <div className="py-6 text-center text-slate-400 text-xs font-bold">
                                     Tidak ada data yang cocok
                                 </div>
                             ) : (
@@ -182,8 +248,9 @@ export default function SearchableSelect({
                             )}
                         </div>
                     </motion.div>
-                )}
-            </AnimatePresence>
+                </AnimatePresence>,
+                document.body
+            )}
         </div>
     );
 }

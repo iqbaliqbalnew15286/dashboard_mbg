@@ -6,6 +6,7 @@ import {
   Loader2, CheckCircle2, XCircle, AlertCircle, ClipboardCheck, Box, User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import SearchableSelect from '../../Components/SearchableSelect';
 
 export default function StokTerimaPage() {
   // MENGAMBIL NAMA USER DARI SESSION (Nama asli pengguna, bukan role-nya)
@@ -152,22 +153,17 @@ export default function StokTerimaPage() {
       <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1 w-full">
           <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Pilih Nomor PO <span className="text-rose-500">*</span></label>
-          <div className="relative">
-            <Box size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <select 
-              className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl py-3.5 pl-11 pr-4 font-bold text-sm text-slate-700 transition-all outline-none appearance-none cursor-pointer" 
-              value={noPoInput} 
-              onChange={(e) => setNoPoInput(e.target.value)} 
-            >
-              <option value="" disabled>-- Pilih PO yang tersedia --</option>
-              {pendingPos.length === 0 && <option value="" disabled>Tidak ada PO tertunda...</option>}
-              {pendingPos.map(po => (
-                  <option key={po.id} value={po.no_po}>
-                      {po.no_po} (Dipesan: {po.tgl_pesan})
-                  </option>
-              ))}
-            </select>
-          </div>
+          <SearchableSelect
+            options={pendingPos.map(po => ({
+              value: po.no_po,
+              label: po.no_po,
+              sublabel: `Dipesan: ${po.tgl_pesan}`
+            }))}
+            value={noPoInput}
+            onChange={(val) => setNoPoInput(val)}
+            placeholder="Pilih Nomor PO..."
+            searchPlaceholder="Cari nomor PO..."
+          />
         </div>
         <div className="flex flex-wrap md:flex-nowrap gap-3 w-full md:w-auto mt-2 md:mt-0">
           <button 

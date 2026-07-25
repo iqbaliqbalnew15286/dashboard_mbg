@@ -11,6 +11,7 @@ use App\Http\Controllers\MasterOperasionalController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\KategoriBiayaController;
 use App\Http\Controllers\PengaturanController;
 use Illuminate\Support\Facades\Route;
 
@@ -55,6 +56,7 @@ Route::middleware('auth')->group(function () {
         Route::post('bahan-baku/import', [MasterBahanBakuController::class, 'import'])->name('bahan-baku.import');
         Route::get('bahan-baku/export', [MasterBahanBakuController::class, 'export'])->name('bahan-baku.export');
         Route::get('bahan-baku/template', [MasterBahanBakuController::class, 'template'])->name('bahan-baku.template');
+        Route::post('bahan-baku/bulk-delete', [MasterBahanBakuController::class, 'bulkDestroy'])->name('bahan-baku.bulk-delete');
         Route::resource('bahan-baku', MasterBahanBakuController::class);
 
         Route::post('operasional/import', [MasterOperasionalController::class, 'import'])->name('operasional.import');
@@ -63,6 +65,7 @@ Route::middleware('auth')->group(function () {
         Route::resource('operasional', MasterOperasionalController::class);
 
         Route::resource('supplier', SupplierController::class);
+        Route::resource('kategori', KategoriBiayaController::class);
     });
 
     // ==========================================

@@ -7,6 +7,7 @@ import {
   XCircle, Trash2, ShoppingCart, Save, X, AlertCircle, User, ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import SearchableSelect from '../../Components/SearchableSelect';
 
 export default function StokKeluarPage() {
   // 1. MENGAMBIL DATA USER & PENGATURAN GLOBAL DARI SESSION
@@ -536,19 +537,17 @@ export default function StokKeluarPage() {
                         <div className="pt-5 border-t border-slate-100 space-y-5">
                           <div>
                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Pilih Barang <span className="text-rose-500">*</span></label>
-                            <div className="relative">
-                                <select 
-                                className="w-full bg-white border border-rose-300 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 rounded-xl p-3 pr-10 text-sm font-bold outline-none appearance-none cursor-pointer text-slate-700 transition-all"
-                                value={selectedBarangId}
-                                onChange={(e) => setSelectedBarangId(e.target.value)}
-                                >
-                                <option value="">-- Pilih Barang --</option>
-                                {barangTersedia.map(b => (
-                                    <option key={b.id} value={b.id}>{b.nama} (Sisa: {formatAngka(b.stok)})</option>
-                                ))}
-                                </select>
-                                <ChevronDown size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                            </div>
+                            <SearchableSelect
+                              options={barangTersedia.map(b => ({
+                                value: b.id,
+                                label: b.nama,
+                                sublabel: `Sisa Stok: ${formatAngka(b.stok)} ${b.satuan || ''}`
+                              }))}
+                              value={selectedBarangId}
+                              onChange={(val) => setSelectedBarangId(val)}
+                              placeholder="Pilih Barang..."
+                              searchPlaceholder="Cari barang..."
+                            />
                           </div>
 
                           <div className="grid grid-cols-2 gap-3">

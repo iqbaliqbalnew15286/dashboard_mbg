@@ -12,6 +12,12 @@ export default function PoCreate() {
   const { props } = usePage();
   const bahanBakus = props.bahan_bakus || [];
   const suppliers = props.suppliers || [];
+  const kategoriBiayasProp = props.kategori_biayas || [];
+
+  const defaultKategoris = ['Bahan Baku', 'Operasional', 'Insentif Fasilitas'];
+  const kategoriOptions = kategoriBiayasProp.length > 0
+    ? kategoriBiayasProp.map(k => ({ value: k.nama_kategori, label: k.nama_kategori, sublabel: k.keterangan || '' }))
+    : defaultKategoris.map(k => ({ value: k, label: k }));
 
   // Cetak Blueprint Nilai Form Awal (QTY & Harga dikosongkan agar tidak ada angka 0/1 tersangkut)
   const getInitialForm = () => ({
@@ -117,11 +123,7 @@ export default function PoCreate() {
           <div>
             <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Kategori Biaya <span className="text-rose-500">*</span></label>
             <SearchableSelect
-              options={[
-                { value: 'Bahan Baku', label: 'Bahan Baku' },
-                { value: 'Operasional', label: 'Operasional' },
-                { value: 'Insentif Fasilitas', label: 'Insentif Fasilitas' }
-              ]}
+              options={kategoriOptions}
               value={form.kategori_biaya}
               onChange={(val) => setForm(p => ({ ...p, kategori_biaya: val }))}
               placeholder="Pilih Kategori..."

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BeritaAcara;
 use App\Models\PurchaseOrder;
+use App\Models\KategoriBiaya;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
@@ -24,7 +25,8 @@ class BeritaAcaraController extends Controller
         // Nama folder "beritaacara" (huruf kecil semua) dan "Index" (I besar)
         return Inertia::render('beritaacara/Index', [
             'bas' => $bas,
-            'available_pos' => $poTersedia
+            'available_pos' => $poTersedia,
+            'kategori_biayas' => KategoriBiaya::all()
         ]);
     }
 

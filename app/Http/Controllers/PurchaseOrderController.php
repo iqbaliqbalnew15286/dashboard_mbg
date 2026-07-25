@@ -6,6 +6,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PoDetail;
 use App\Models\MasterBahanBaku;
 use App\Models\Supplier; 
+use App\Models\KategoriBiaya;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -16,8 +17,9 @@ class PurchaseOrderController extends Controller
     public function create()
     {
         return Inertia::render('po/Create', [
-            'bahan_bakus'  => MasterBahanBaku::all(),
-            'suppliers'    => Supplier::all(), 
+            'bahan_bakus'     => MasterBahanBaku::all(),
+            'suppliers'       => Supplier::all(), 
+            'kategori_biayas' => KategoriBiaya::all(),
         ]);
     }
 

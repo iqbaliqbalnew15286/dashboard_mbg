@@ -7,8 +7,13 @@ import {
 } from 'lucide-react';
 
 export default function LaporanIndex() {
-  // 1. Ambil pengaturan global dari Inertia
-  const { pengaturanGlobal = {} } = usePage().props;
+  // 1. Ambil pengaturan global & kategori_biayas dari Inertia
+  const { pengaturanGlobal = {}, kategori_biayas = [] } = usePage().props;
+  
+  const defaultKategoris = ['Bahan Baku', 'Operasional', 'Insentif Fasilitas'];
+  const daftarKategori = kategori_biayas.length > 0
+    ? kategori_biayas.map(k => k.nama_kategori)
+    : defaultKategoris;
   
   // 2. Default Ceklis untuk Laporan Transaksi
   const defaultKonfigLaporan = { yayasan: true, pengawas: true, sppg: true, asisten: false, penerima: false };
@@ -188,9 +193,9 @@ export default function LaporanIndex() {
                 onChange={(e) => setKategori(e.target.value)}
               >
                 <option value="">Semua Kategori</option>
-                <option value="Bahan Baku">Bahan Baku</option>
-                <option value="Operasional">Operasional</option>
-                <option value="Insentif Fasilitas">Insentif Fasilitas</option>
+                {daftarKategori.map(kat => (
+                  <option key={kat} value={kat}>{kat}</option>
+                ))}
               </select>
             </div>
           </div>
