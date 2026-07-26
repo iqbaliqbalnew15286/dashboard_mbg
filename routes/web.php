@@ -107,3 +107,22 @@ Route::middleware('auth')->group(function () {
     // Manajemen Akses Admin (RBAC: Superadmin & Admin)
     Route::resource('user', UserController::class);
 });
+
+// ==========================================
+// RUTE UTILITAS DATABASE HOSTING
+// ==========================================
+Route::get('/artisan/migrate', function () {
+    try {
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Migrasi database berhasil dijalankan!',
+            'output' => \Illuminate\Support\Facades\Artisan::output()
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+});

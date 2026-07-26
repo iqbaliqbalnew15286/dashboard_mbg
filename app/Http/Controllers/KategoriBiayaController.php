@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\KategoriBiaya;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Database\Schema\Blueprint;
 use Inertia\Inertia;
 
 class KategoriBiayaController extends Controller
@@ -13,7 +16,20 @@ class KategoriBiayaController extends Controller
      */
     private function seedDefaultsIfNeeded()
     {
-        if (KategoriBiaya::count() === 0) {
+        if (!Schema::hasTable('kategori_biayas')) {
+            try {
+                Artisan::call('migrate', ['--force' => true]);
+            } catch (\Throwable $e) {
+                Schema::create('kategori_biayas', function (Blueprint $table) {
+                    $table->id();
+                    $table->string('nama_kategori')->unique();
+                    $table->string('keterangan')->nullable();
+                    $table->timestamps();
+                });
+            }
+        }
+
+        if (Schema::hasTable('kategori_biayas') && KategoriBiaya::count() === 0) {
             $defaults = [
                 ['nama_kategori' => 'Bahan Baku', 'keterangan' => 'Belanja bahan baku pangan dan dapur operasional'],
                 ['nama_kategori' => 'Operasional', 'keterangan' => 'Biaya operasional harian, listrik, kebersihan, dll.'],
