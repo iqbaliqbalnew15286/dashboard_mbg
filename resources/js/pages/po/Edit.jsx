@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { usePage, router } from '@inertiajs/react';
-import { FileEdit, Save, X, Plus, Trash2, ArrowLeft, Loader2, Box, Calendar } from 'lucide-react';
+import { FileEdit, Save, X, Plus, Trash2, ArrowLeft, Loader2, Box, Calendar, AlertTriangle } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 // PERBAIKAN: Menggunakan ../../ untuk naik 2 tingkat folder dari pages/po/
@@ -102,6 +102,26 @@ export default function PoEdit() {
             </button>
         </div>
       </div>
+
+      {po.rab_id && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div>
+            <h4 className="font-black text-amber-800 text-sm flex items-center gap-2">
+              <AlertTriangle size={18}/> Transaksi PO Diterbitkan dari RAB Pusat
+            </h4>
+            <p className="text-amber-700 text-xs mt-1 font-medium">
+              Lakukan revisi pada RAB Pusat agar alokasi pagu, rincian belanja supplier, dan seluruh laporan kebawah otomatis terupdate dengan benar.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.visit(`/rab/${po.rab_id}/edit`)}
+            className="bg-amber-600 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all shrink-0 shadow-md"
+          >
+            Revisi via RAB Pusat
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleFormSubmit} className="space-y-6">
         

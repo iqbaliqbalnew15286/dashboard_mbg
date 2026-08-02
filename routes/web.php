@@ -45,8 +45,8 @@ Route::middleware('auth')->group(function () {
     // Modul Berita Acara
     Route::resource('berita-acara', BeritaAcaraController::class);
 
-    // Modul Laporan Umum
-    Route::get('/laporan', [LaporanController::class, 'index'])->name('laporan.index');
+    // Modul Laporan (Dioper ke Sub menu Transaksi)
+    Route::get('/laporan', fn() => redirect('/transaksi'))->name('laporan.index');
     Route::post('/laporan/transaksi', [LaporanController::class, 'transaksi'])->name('laporan.transaksi');
 
     // ==========================================

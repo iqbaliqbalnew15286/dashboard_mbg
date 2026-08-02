@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { usePage, router } from '@inertiajs/react';
 import { 
   FileSignature, Search, Calendar, Plus, 
-  Trash2, Printer, X, FileText, CheckCircle2, Loader2 
+  Trash2, Printer, X, FileText, CheckCircle2, Loader2, Layers 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
@@ -13,6 +13,14 @@ export default function BeritaAcaraIndex() {
   const bas = props.bas || [];
   const availablePos = props.available_pos || [];
   const kategoriBiayasProp = props.kategori_biayas || [];
+  const { pengaturanGlobal = {} } = props;
+
+  const JENIS_BA_OPTIONS = [
+    'SURAT PERINTAH MEMBAYAR',
+    'BERITA ACARA PENGEMBALIAN DANA',
+    'BERITA ACARA PENGALIHAN SISA DANA PETTY CASH',
+    'BERITA ACARA INSENTIF FASILITAS'
+  ];
 
   const defaultKategoris = ['Bahan Baku', 'Operasional', 'Insentif Fasilitas'];
   const kategoriOptions = [
@@ -22,15 +30,13 @@ export default function BeritaAcaraIndex() {
       : defaultKategoris.map(k => ({ value: k, label: k })))
   ];
 
-  // 1. Ambil pengaturan global dari Inertia
-  const { pengaturanGlobal = {} } = props;
-
-  // 2. Default Konfigurasi TTD untuk Berita Acara
+  // Default Konfigurasi TTD untuk Berita Acara
   const defaultKonfigBA = { yayasan: false, pengawas: true, sppg: true, asisten: true, penerima: true };
   const konfigCetak = pengaturanGlobal.konfigurasi_cetak?.berita_acara || defaultKonfigBA;
 
   // FILTER STATE
   const [search, setSearch] = useState('');
+  const [filterJenisBa, setFilterJenisBa] = useState('');
   const [filterKategori, setFilterKategori] = useState('');
   const [tglAwal, setTglAwal] = useState('');
   const [tglAkhir, setTglAkhir] = useState('');
@@ -44,11 +50,11 @@ export default function BeritaAcaraIndex() {
   const [form, setForm] = useState({
     tanggal_ba: new Date().toISOString().slice(0, 10),
     nomor_ba: '',
+    jenis_ba: 'SURAT PERINTAH MEMBAYAR',
     purchase_order_id: '',
     keterangan: ''
   });
 
-  // HELPER FORMAT TANGGAL LOKAL (Contoh: 10 Juli 2026)
   const formatTanggalLokal = (dateStr) => {
     if (!dateStr) return '-';
     try {
@@ -72,17 +78,19 @@ export default function BeritaAcaraIndex() {
       const matchSearch = 
         (ba.nomor_ba || '').toLowerCase().includes(search.toLowerCase()) || 
         (po.nomor_po || '').toLowerCase().includes(search.toLowerCase()) ||
+        (ba.jenis_ba || '').toLowerCase().includes(search.toLowerCase()) ||
         (ba.keterangan || '').toLowerCase().includes(search.toLowerCase());
       
+      const matchJenis = filterJenisBa ? ba.jenis_ba === filterJenisBa : true;
       const matchKategori = filterKategori ? po.kategori_biaya === filterKategori : true;
       
       const baDateOnly = ba.tanggal_ba ? ba.tanggal_ba.split(' ')[0] : '';
       const matchTglAwal = tglAwal ? baDateOnly >= tglAwal : true;
       const matchTglAkhir = tglAkhir ? baDateOnly <= tglAkhir : true;
       
-      return matchSearch && matchKategori && matchTglAwal && matchTglAkhir;
+      return matchSearch && matchJenis && matchKategori && matchTglAwal && matchTglAkhir;
     });
-  }, [bas, search, filterKategori, tglAwal, tglAkhir]);
+  }, [bas, search, filterJenisBa, filterKategori, tglAwal, tglAkhir]);
 
   const totalNominal = useMemo(() => filteredBas.reduce((sum, b) => sum + (Number(b.purchase_order?.grand_total) || 0), 0), [filteredBas]);
 
@@ -97,9 +105,9 @@ export default function BeritaAcaraIndex() {
     setLoading(true);
     router.post('/berita-acara', form, {
       onSuccess: () => {
-        toast.success('Berita Acara berhasil diterbitkan!');
+        toast.success(`Berita Acara (${form.jenis_ba}) berhasil diterbitkan!`);
         setIsInputModalOpen(false);
-        setForm({ tanggal_ba: new Date().toISOString().slice(0, 10), nomor_ba: '', purchase_order_id: '', keterangan: '' });
+        setForm({ tanggal_ba: new Date().toISOString().slice(0, 10), nomor_ba: '', jenis_ba: 'SURAT PERINTAH MEMBAYAR', purchase_order_id: '', keterangan: '' });
       },
       onError: () => toast.error('Gagal menyimpan BA. Periksa kelengkapan input.'),
       onFinish: () => setLoading(false)
@@ -127,7 +135,6 @@ export default function BeritaAcaraIndex() {
       { key: 'penerima', jabatan: pengaturanGlobal.penerima_jabatan || 'Penerima Barang', nama: pengaturanGlobal.penerima_nama, nip: pengaturanGlobal.penerima_nip },
   ];
 
-  // Filter Pejabat berdasarkan konfigurasi di Pengaturan
   const pejabatTampil = listPejabat.filter(p => konfigCetak[p.key]);
 
   return (
@@ -151,7 +158,9 @@ export default function BeritaAcaraIndex() {
                 </div>
             )}
             <div className="text-center mb-6">
-                <h3 className="font-bold text-[16px] uppercase tracking-wider underline underline-offset-4">Rekapitulasi Berita Acara</h3>
+                <h3 className="font-bold text-[16px] uppercase tracking-wider underline underline-offset-4">
+                  Rekapitulasi {filterJenisBa || 'Berita Acara'}
+                </h3>
             </div>
             <div className="flex gap-4 mb-1 text-[12px] font-bold text-slate-800">
                 <div className="w-16">Periode</div>
@@ -168,52 +177,102 @@ export default function BeritaAcaraIndex() {
         {/* HEADER & FILTER (Layar Saja) */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 print:hidden px-4 md:px-0 pt-4 md:pt-0">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">BA Pengajuan Anggaran</h2>
-            <p className="text-slate-500 text-sm mt-1">Kelola dan cetak Berita Acara (BA) pencairan dana.</p>
+            <h2 className="text-2xl font-bold text-slate-800">Berita Acara (BA)</h2>
+            <p className="text-slate-500 text-sm mt-1">Daftar dokumen Berita Acara per kebutuhan pencairan & pengalihan dana.</p>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-            <div className="w-full sm:w-[180px]">
-              <SearchableSelect
-                options={kategoriOptions}
-                value={filterKategori}
-                onChange={(val) => setFilterKategori(val)}
-                placeholder="Semua Kategori"
-                searchPlaceholder="Cari kategori..."
-              />
-            </div>
-
-            <div className="flex flex-1 sm:flex-none items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:border-blue-500 transition-all">
-              <span className="pl-3 pr-2 text-slate-400"><Calendar size={14}/></span>
-              <input type="date" value={tglAwal} onChange={(e) => setTglAwal(e.target.value)} className="py-2.5 px-1 bg-transparent font-bold text-xs text-slate-700 outline-none w-[110px] cursor-pointer" />
-              <span className="px-1 bg-slate-100 text-slate-400 font-bold text-[10px] uppercase tracking-widest h-full flex items-center">s/d</span>
-              <input type="date" value={tglAkhir} onChange={(e) => setTglAkhir(e.target.value)} className="py-2.5 px-2 bg-transparent font-bold text-xs text-slate-700 outline-none w-[110px] cursor-pointer" />
-            </div>
-
-            <div className="relative w-full sm:w-[180px]">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search size={14} className="text-slate-400" /></span>
-              <input 
-                type="text" placeholder="Cari No BA, PO..." 
-                value={search} onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 font-bold text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" 
-              />
-            </div>
-
-            {/* Tombol Cetak Daftar BA (Rekap) */}
-            <button 
-              onClick={handlePrintRekap} 
-              disabled={filteredBas.length === 0}
-              className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shrink-0 disabled:opacity-50"
-            >
-              <Printer size={16} /> Cetak Daftar
-            </button>
-
+          <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
             <button 
               onClick={() => setIsInputModalOpen(true)} 
-              className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shrink-0"
+              className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 shrink-0"
             >
-              <Plus size={16} /> Buat BA
+              <Plus size={18} /> Terbitkan BA Baru
             </button>
+          </div>
+        </div>
+
+        {/* TABS FILTER JENIS BERITA ACARA */}
+        <div className="bg-white rounded-[2rem] border border-blue-100 p-6 shadow-sm relative overflow-hidden print:hidden space-y-4">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-amber-500"></div>
+
+          <div>
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2.5">
+              Filter Kebutuhan Berita Acara
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setFilterJenisBa('')}
+                className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
+                  filterJenisBa === '' 
+                  ? 'bg-slate-900 text-white shadow-md' 
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Semua Berita Acara
+              </button>
+              {JENIS_BA_OPTIONS.map((jba, index) => (
+                <button
+                  key={jba}
+                  type="button"
+                  onClick={() => setFilterJenisBa(jba)}
+                  className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
+                    filterJenisBa === jba 
+                    ? 'bg-blue-600 text-white shadow-md' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {index + 1}. {jba}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col xl:flex-row gap-4 items-end pt-2 border-t border-slate-100">
+            <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1.5">Kategori Biaya</label>
+                <SearchableSelect
+                  options={kategoriOptions}
+                  value={filterKategori}
+                  onChange={(val) => setFilterKategori(val)}
+                  placeholder="Semua Kategori"
+                  searchPlaceholder="Cari kategori..."
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1.5">Tanggal Awal</label>
+                <input type="date" value={tglAwal} onChange={(e) => setTglAwal(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-xs text-slate-700 outline-none focus:border-blue-500 transition-all cursor-pointer" />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1.5">Tanggal Akhir</label>
+                <input type="date" value={tglAkhir} onChange={(e) => setTglAkhir(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-xs text-slate-700 outline-none focus:border-blue-500 transition-all cursor-pointer" />
+              </div>
+            </div>
+
+            <div className="flex-1 w-full">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1.5">Pencarian Teks</label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search size={14} className="text-slate-400" /></span>
+                <input 
+                  type="text" placeholder="Cari Nomor BA, No PO, Keterangan..." 
+                  value={search} onChange={(e) => setSearch(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-3 font-bold text-xs text-slate-700 outline-none focus:border-blue-500 transition-all" 
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 shrink-0">
+              <button 
+                onClick={handlePrintRekap} 
+                disabled={filteredBas.length === 0}
+                className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+              >
+                <Printer size={16} /> Cetak Daftar
+              </button>
+            </div>
           </div>
         </div>
 
@@ -225,14 +284,14 @@ export default function BeritaAcaraIndex() {
               {/* THEAD Layar */}
               <thead className="print:hidden bg-slate-50 text-[10px] uppercase font-black text-slate-400 tracking-widest border-b border-slate-100">
                 <tr>
-                  <th className="px-6 py-5 w-[60px] text-center border-b border-slate-100">No</th>
-                  <th className="px-4 py-5 w-[140px] border-b border-slate-100">Tgl BA</th>
-                  <th className="px-4 py-5 w-[180px] border-b border-slate-100">Nomor BA</th>
-                  <th className="px-4 py-5 w-[180px] border-b border-slate-100">No. PO Ref</th>
-                  <th className="px-4 py-5 text-left border-b border-slate-100">Keterangan</th>
-                  <th className="px-4 py-5 w-[150px] text-center border-b border-slate-100">Kategori</th>
-                  <th className="px-6 py-5 w-[150px] text-right border-b border-slate-100">Nominal (Rp)</th>
-                  <th className="px-6 py-5 w-[120px] text-center border-b border-slate-100">Aksi</th>
+                  <th className="px-6 py-5 w-[60px] text-center">No</th>
+                  <th className="px-4 py-5 w-[130px]">Tgl BA</th>
+                  <th className="px-4 py-5 w-[160px]">Nomor BA</th>
+                  <th className="px-4 py-5 w-[200px]">Jenis / Kebutuhan BA</th>
+                  <th className="px-4 py-5 w-[160px]">No. PO Ref</th>
+                  <th className="px-4 py-5 text-left">Keterangan</th>
+                  <th className="px-6 py-5 w-[150px] text-right">Nominal (Rp)</th>
+                  <th className="px-6 py-5 w-[120px] text-center">Aksi</th>
                 </tr>
               </thead>
 
@@ -245,9 +304,9 @@ export default function BeritaAcaraIndex() {
                   <th className="px-4 py-3 border border-black text-center">NO</th>
                   <th className="px-4 py-3 border border-black text-center">TGL BA</th>
                   <th className="px-4 py-3 border border-black text-center">NOMOR BA</th>
+                  <th className="px-4 py-3 border border-black text-center">JENIS BERITA ACARA</th>
                   <th className="px-4 py-3 border border-black text-center">NO. PO REF</th>
                   <th className="px-4 py-3 border border-black text-center">KETERANGAN</th>
-                  <th className="px-4 py-3 border border-black text-center">KATEGORI</th>
                   <th className="px-4 py-3 border border-black text-center">NOMINAL (Rp)</th>
                 </tr>
               </thead>
@@ -262,33 +321,48 @@ export default function BeritaAcaraIndex() {
                     </td>
                   </tr>
                 ) : (
-                  filteredBas.map((ba, idx) => (
-                    <tr key={ba.id} className="hover:bg-slate-50/80 transition-colors print:text-black print:border print:border-black">
-                      <td className="px-6 py-4 font-bold text-slate-400 text-center print:border print:border-black print:text-black print:text-[11px]">{idx + 1}</td>
-                      <td className="px-4 py-4 font-bold text-slate-600 whitespace-nowrap print:border print:border-black print:text-black print:text-[11px]">{formatTanggalLokal(ba.tanggal_ba)}</td>
-                      <td className="px-4 py-4 font-black text-blue-600 break-words print:border print:border-black print:text-black print:text-[11px]">{ba.nomor_ba}</td>
-                      <td className="px-4 py-4 font-bold text-slate-700 break-words print:border print:border-black print:text-black print:text-[11px]">{ba.purchase_order?.nomor_po || '-'}</td>
-                      <td className="px-4 py-4 font-medium text-slate-500 leading-tight print:border print:border-black print:text-black print:text-[11px]">{ba.keterangan}</td>
-                      <td className="px-4 py-4 text-center print:border print:border-black print:text-black print:text-[11px]">
-                        <span className="bg-white border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm whitespace-nowrap print:border-none print:shadow-none print:p-0">
-                          {ba.purchase_order?.kategori_biaya || '-'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 font-black text-slate-800 text-right whitespace-nowrap bg-slate-50/30 print:border print:border-black print:bg-transparent print:text-black print:text-[12px]">{formatRp(ba.purchase_order?.grand_total)}</td>
-                      
-                      {/* Kolom Aksi hanya di layar */}
-                      <td className="px-6 py-4 print:hidden">
-                        <div className="flex justify-center gap-2">
-                          <button onClick={() => setPrintData(ba)} className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Cetak Dokumen BA">
-                            <Printer size={15}/>
-                          </button>
-                          <button onClick={() => handleHapus(ba.id)} className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm" title="Hapus BA">
-                            <Trash2 size={15}/>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  filteredBas.map((ba, idx) => {
+                    const jenis = ba.jenis_ba || 'SURAT PERINTAH MEMBAYAR';
+
+                    return (
+                      <tr key={ba.id} className="hover:bg-slate-50/80 transition-colors print:text-black print:border print:border-black">
+                        <td className="px-6 py-4 font-bold text-slate-400 text-center print:border print:border-black print:text-black print:text-[11px]">{idx + 1}</td>
+                        <td className="px-4 py-4 font-bold text-slate-600 whitespace-nowrap print:border print:border-black print:text-black print:text-[11px]">{formatTanggalLokal(ba.tanggal_ba)}</td>
+                        <td className="px-4 py-4 font-black text-blue-600 break-words print:border print:border-black print:text-black print:text-[11px]">{ba.nomor_ba}</td>
+                        
+                        <td className="px-4 py-4 print:border print:border-black print:text-black print:text-[11px]">
+                          <span className={`inline-block px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                            jenis === 'SURAT PERINTAH MEMBAYAR'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                            : jenis === 'BERITA ACARA PENGEMBALIAN DANA'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                            : jenis === 'BERITA ACARA PENGALIHAN SISA DANA PETTY CASH'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                            : 'bg-purple-50 text-purple-700 border border-purple-100'
+                          }`}>
+                            {jenis}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-4 font-bold text-slate-700 break-words print:border print:border-black print:text-black print:text-[11px]">{ba.purchase_order?.nomor_po || '-'}</td>
+                        <td className="px-4 py-4 font-medium text-slate-500 leading-tight print:border print:border-black print:text-black print:text-[11px]">{ba.keterangan}</td>
+                        
+                        <td className="px-6 py-4 font-black text-slate-800 text-right whitespace-nowrap bg-slate-50/30 print:border print:border-black print:bg-transparent print:text-black print:text-[12px]">{formatRp(ba.purchase_order?.grand_total)}</td>
+                        
+                        {/* Kolom Aksi hanya di layar */}
+                        <td className="px-6 py-4 print:hidden">
+                          <div className="flex justify-center gap-2">
+                            <button onClick={() => setPrintData(ba)} className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Cetak Dokumen BA">
+                              <Printer size={15}/>
+                            </button>
+                            <button onClick={() => handleHapus(ba.id)} className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm" title="Hapus BA">
+                              <Trash2 size={15}/>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
 
@@ -339,7 +413,7 @@ export default function BeritaAcaraIndex() {
       </div>
 
       {/* ======================================================== */}
-      {/* MODAL INPUT BA BARU */}
+      {/* MODAL INPUT BA BARU                                      */}
       {/* ======================================================== */}
       <AnimatePresence>
         {isInputModalOpen && (
@@ -349,14 +423,28 @@ export default function BeritaAcaraIndex() {
               <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
                 <div>
                   <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
-                    <FileSignature className="text-blue-600" size={24} /> Form Berita Acara
+                    <FileSignature className="text-blue-600" size={24} /> Form Terbitkan Berita Acara
                   </h2>
-                  <p className="text-xs text-slate-500 font-medium mt-1">Lengkapi data untuk menerbitkan BA pembayaran.</p>
+                  <p className="text-xs text-slate-500 font-medium mt-1">Lengkapi data kebutuhan Berita Acara.</p>
                 </div>
                 <button onClick={() => setIsInputModalOpen(false)} className="p-2 bg-slate-50 text-slate-400 rounded-full hover:bg-slate-100 hover:text-slate-600 transition-colors"><X size={18} /></button>
               </div>
               
               <form onSubmit={handleSimpan} className="flex-1 overflow-y-auto p-8 space-y-6">
+                
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Kebutuhan / Jenis Berita Acara <span className="text-rose-500">*</span></label>
+                  <select
+                    value={form.jenis_ba}
+                    onChange={(e) => setForm({...form, jenis_ba: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 font-bold text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all cursor-pointer"
+                  >
+                    {JENIS_BA_OPTIONS.map((jba, idx) => (
+                      <option key={jba} value={jba}>{idx + 1}. {jba}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Tanggal BA <span className="text-rose-500">*</span></label>
@@ -370,7 +458,7 @@ export default function BeritaAcaraIndex() {
 
                 <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-5 space-y-4">
                   <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Pilih Nomor PO (Tersedia) <span className="text-rose-500">*</span></label>
+                    <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Pilih Nomor PO Ref (Tersedia) <span className="text-rose-500">*</span></label>
                     <SearchableSelect
                       options={availablePos.map(po => ({ value: po.id, label: po.nomor_po, sublabel: po.kategori_biaya }))}
                       value={form.purchase_order_id}
@@ -398,7 +486,7 @@ export default function BeritaAcaraIndex() {
 
                 <div>
                   <label className="text-[10px] font-black uppercase text-slate-400 block mb-2 tracking-widest">Keterangan Pengajuan <span className="text-rose-500">*</span></label>
-                  <textarea required value={form.keterangan} onChange={(e) => setForm({...form, keterangan: e.target.value})} rows="3" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-bold text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:font-semibold placeholder:text-slate-400" placeholder="Contoh: Pembayaran bahan baku sayuran dan protein..."></textarea>
+                  <textarea required value={form.keterangan} onChange={(e) => setForm({...form, keterangan: e.target.value})} rows="3" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-bold text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:font-semibold placeholder:text-slate-400" placeholder="Contoh: Pencairan dana berdasarkan hasil rincian pengadaan..."></textarea>
                 </div>
               </form>
 
@@ -414,7 +502,7 @@ export default function BeritaAcaraIndex() {
       </AnimatePresence>
 
       {/* ======================================================== */}
-      {/* 2. BAGIAN CETAK: PREVIEW DOKUMEN INDIVIDUAL BA */}
+      {/* 2. BAGIAN CETAK: PREVIEW DOKUMEN INDIVIDUAL BA           */}
       {/* ======================================================== */}
       <AnimatePresence>
         {printData && (
@@ -422,7 +510,7 @@ export default function BeritaAcaraIndex() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="bg-white rounded-[2rem] w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] print:max-h-none print:shadow-none print:rounded-none border border-slate-200/60 print:border-none">
               
               <div className="bg-slate-900 text-white px-8 py-5 flex justify-between items-center shrink-0 print:hidden">
-                <h5 className="font-black flex items-center gap-2"><Printer size={18} className="text-blue-400" /> Preview Berita Acara Cetak</h5>
+                <h5 className="font-black flex items-center gap-2"><Printer size={18} className="text-blue-400" /> Preview {printData.jenis_ba || 'Berita Acara'}</h5>
                 <button onClick={() => setPrintData(null)} className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"><X size={18} /></button>
               </div>
               
@@ -436,9 +524,9 @@ export default function BeritaAcaraIndex() {
                       .print\\:bg-white, .print\\:bg-white * { visibility: visible; }
                       .print\\:bg-white { position: absolute; left: 0; top: 0; width: 100%; overflow: visible !important; }
                       .print\\:hidden { display: none !important; }
-                      @page { margin: 1cm; size: portrait; }
+                      @page { margin: 1.5cm; size: portrait; }
                     }
-                    .judul-ba { text-align: center; font-weight: bold; margin-top: 20px; font-size: 16px; font-family: 'Times New Roman', Times, serif;}
+                    .judul-ba { text-align: center; font-weight: bold; margin-top: 20px; font-size: 16px; font-family: 'Times New Roman', Times, serif; text-transform: uppercase; }
                     .nomor-ba { text-align: center; margin-bottom: 30px; font-size: 15px; font-family: 'Times New Roman', Times, serif;}
                     .paragraf-ba { text-align: justify; text-justify: inter-word; font-family: 'Times New Roman', Times, serif; font-size: 15px; line-height: 1.6; margin-bottom: 25px; text-indent: 40px; }
                     .table-cetak-ba { width: 100%; border-collapse: collapse; font-family: 'Times New Roman', Times, serif; font-size: 14px; margin-bottom: 40px; }
@@ -457,7 +545,7 @@ export default function BeritaAcaraIndex() {
                       </div>
                   )}
 
-                  <div className="judul-ba">BERITA ACARA PENGAJUAN PEMBAYARAN KEPADA PIC</div>
+                  <div className="judul-ba">{printData.jenis_ba || 'BERITA ACARA PENGAJUAN PEMBAYARAN KEPADA PIC'}</div>
                   <div className="nomor-ba">{printData.nomor_ba}</div>
 
                   <div className="paragraf-ba">
@@ -510,7 +598,7 @@ export default function BeritaAcaraIndex() {
               <div className="p-6 bg-white border-t border-slate-100 flex justify-end shrink-0 gap-3 print:hidden">
                 <button type="button" onClick={() => setPrintData(null)} className="px-6 py-3.5 bg-slate-100 text-slate-600 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-colors">Tutup Preview</button>
                 <button type="button" onClick={() => window.print()} className="px-8 py-3.5 bg-slate-900 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2 shadow-lg shadow-blue-600/20">
-                  <Printer size={16} /> Cetak Dokumen
+                  <Printer size={16} /> Cetak Dokumen BA
                 </button>
               </div>
             </motion.div>

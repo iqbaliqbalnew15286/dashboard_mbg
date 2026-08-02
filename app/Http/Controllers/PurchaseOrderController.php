@@ -14,12 +14,30 @@ use Illuminate\Support\Str;
 
 class PurchaseOrderController extends Controller
 {
-    public function create()
+    public function create(Request $request)
     {
+        $query = PurchaseOrder::with(['details.bahanBaku', 'details.supplier', 'rab']);
+
+        if ($request->filled('kategori')) {
+            $query->where('kategori_biaya', $request->kategori);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('nomor_po', 'like', "%{$search}%")
+                  ->orWhere('kategori_biaya', 'like', "%{$search}%");
+            });
+        }
+
+        $pos = $query->orderByDesc('tanggal_pesan')->orderByDesc('id')->get();
+
         return Inertia::render('po/Create', [
+            'pos'             => $pos,
             'bahan_bakus'     => MasterBahanBaku::all(),
             'suppliers'       => Supplier::all(), 
             'kategori_biayas' => KategoriBiaya::all(),
+            'filters'         => $request->only(['kategori', 'search'])
         ]);
     }
 
@@ -136,20 +154,37 @@ class PurchaseOrderController extends Controller
     // =========================================================================
     public function transaksi(Request $request)
     {
-        $query = PurchaseOrder::with(['details.bahanBaku', 'details.supplier']);
+        $query = PurchaseOrder::with(['details.bahanBaku', 'details.supplier', 'rab']);
 
-        // Fitur Pencarian Real-Time
-        if ($request->has('search') && $request->search != '') {
-            $query->where('nomor_po', 'like', '%' . $request->search . '%')
-                  ->orWhere('kategori_biaya', 'like', '%' . $request->search . '%');
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('nomor_po', 'like', "%{$search}%")
+                  ->orWhere('kategori_biaya', 'like', "%{$search}%")
+                  ->orWhereHas('details.supplier', function($sq) use ($search) {
+                      $sq->where('nama_perusahaan', 'like', "%{$search}%");
+                  });
+            });
         }
 
-        // Paginasi: Hanya ambil 10 data per halaman agar browser tidak nge-freeze
-        $transactions = $query->orderByDesc('tanggal_pesan')->paginate(10)->withQueryString();
+        if ($request->filled('tgl_awal')) {
+            $query->whereDate('tanggal_pesan', '>=', $request->tgl_awal);
+        }
+
+        if ($request->filled('tgl_akhir')) {
+            $query->whereDate('tanggal_pesan', '<=', $request->tgl_akhir);
+        }
+
+        if ($request->filled('kategori')) {
+            $query->where('kategori_biaya', $request->kategori);
+        }
+
+        $transactions = $query->orderByDesc('tanggal_pesan')->orderByDesc('id')->paginate(10)->withQueryString();
                             
         return Inertia::render('po/Transaksi', [
-            'transactions' => $transactions,
-            'filters'      => $request->only('search')
+            'transactions'    => $transactions,
+            'kategori_biayas' => KategoriBiaya::all(),
+            'filters'         => $request->only(['search', 'tgl_awal', 'tgl_akhir', 'kategori'])
         ]);
     }
 

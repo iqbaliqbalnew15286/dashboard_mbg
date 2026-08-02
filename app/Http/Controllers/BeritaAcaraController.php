@@ -11,22 +11,33 @@ use Illuminate\Support\Str;
 
 class BeritaAcaraController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        // Ambil semua BA beserta relasi PO-nya
-        $bas = BeritaAcara::with('purchaseOrder')->latest()->get();
+        $query = BeritaAcara::with(['purchaseOrder.details.supplier', 'purchaseOrder.details.bahanBaku']);
+
+        if ($request->filled('jenis_ba')) {
+            $query->where('jenis_ba', $request->jenis_ba);
+        }
+
+        $bas = $query->latest()->get();
         
-        // Ambil PO yang BELUM memiliki Berita Acara (Untuk pilihan dropdown Input BA)
-        // Mengecualikan ID PO yang sudah ada di tabel Berita Acara
         $poTersedia = PurchaseOrder::whereNotIn('id', BeritaAcara::pluck('purchase_order_id'))
                                    ->orderByDesc('tanggal_pesan')
                                    ->get();
 
-        // Nama folder "beritaacara" (huruf kecil semua) dan "Index" (I besar)
+        $jenisBaList = [
+            'SURAT PERINTAH MEMBAYAR',
+            'BERITA ACARA PENGEMBALIAN DANA',
+            'BERITA ACARA PENGALIHAN SISA DANA PETTY CASH',
+            'BERITA ACARA INSENTIF FASILITAS'
+        ];
+
         return Inertia::render('beritaacara/Index', [
-            'bas' => $bas,
-            'available_pos' => $poTersedia,
-            'kategori_biayas' => KategoriBiaya::all()
+            'bas'             => $bas,
+            'available_pos'   => $poTersedia,
+            'kategori_biayas' => KategoriBiaya::all(),
+            'jenis_ba_list'   => $jenisBaList,
+            'filters'         => $request->only('jenis_ba')
         ]);
     }
 
@@ -35,32 +46,30 @@ class BeritaAcaraController extends Controller
         $validated = $request->validate([
             'tanggal_ba'        => 'required|date',
             'nomor_ba'          => 'nullable|string|unique:berita_acaras,nomor_ba',
+            'jenis_ba'          => 'required|string',
             'purchase_order_id' => 'required|exists:purchase_orders,id',
             'keterangan'        => 'required|string',
         ]);
 
-        // Auto-generate nomor BA jika dikosongkan
         $nomorBa = $validated['nomor_ba'] ?? 'BA-MBG-' . date('Ymd') . '-' . strtoupper(Str::random(4));
 
         BeritaAcara::create([
             'tanggal_ba'        => $validated['tanggal_ba'],
             'nomor_ba'          => $nomorBa,
+            'jenis_ba'          => $validated['jenis_ba'],
             'purchase_order_id' => $validated['purchase_order_id'],
             'keterangan'        => $validated['keterangan'],
         ]);
 
-        // PERBAIKAN ERROR SQL 1265: 
-        // Mengubah 'ba_created' menjadi 'approved' agar sesuai dengan ENUM database
         PurchaseOrder::where('id', $validated['purchase_order_id'])->update(['status' => 'approved']);
 
-        return back()->with('success', 'Berita Acara berhasil diterbitkan.');
+        return back()->with('success', 'Berita Acara (' . $validated['jenis_ba'] . ') berhasil diterbitkan.');
     }
 
     public function destroy($id)
     {
         $ba = BeritaAcara::findOrFail($id);
         
-        // Kembalikan status PO menjadi draft sebelum BA dihapus agar bisa diproses ulang
         if ($ba->purchaseOrder) {
             $ba->purchaseOrder->update(['status' => 'draft']);
         }

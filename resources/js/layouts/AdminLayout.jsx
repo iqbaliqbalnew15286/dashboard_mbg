@@ -13,10 +13,9 @@ const MENU_SECTIONS = [
     items: [
       { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={20} /> },
       { name: 'RAB', path: '/rab', icon: <Wallet size={20} /> },
-      { name: 'Input PO', path: '/purchase-orders/create', icon: <FileEdit size={20} /> },
+      { name: 'List PO', path: '/purchase-orders/create', icon: <FileEdit size={20} /> },
       { name: 'Transaksi', path: '/transaksi', icon: <ListOrdered size={20} /> },
       { name: 'Berita Acara', path: '/berita-acara', icon: <FileSignature size={20} /> },
-      { name: 'Laporan', path: '/laporan', icon: <PieChart size={20} /> },
     ]
   },
   {

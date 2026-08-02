@@ -10,6 +10,7 @@ class BeritaAcara extends Model
     protected $fillable = [
         'purchase_order_id',
         'nomor_ba',
+        'jenis_ba',
         'tanggal_ba',
         'keterangan'
     ];

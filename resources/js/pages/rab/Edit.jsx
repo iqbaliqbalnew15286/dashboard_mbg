@@ -1,45 +1,60 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { usePage, router, Link } from '@inertiajs/react';
 import { 
     Plus, Trash2, Save, ArrowLeft, 
-    AlertTriangle, Calculator, FileText, Wallet,
+    AlertTriangle, Calculator, Wallet,
     Box, Truck, Receipt, CheckCircle2, Loader2, Layers
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import SearchableSelect from '../../Components/SearchableSelect';
 
-export default function RabCreate() {
+export default function RabEdit() {
     const { props } = usePage();
-    const { bahan_bakus = [], suppliers = [], tipe_rab = 'bahan' } = props;
+    const { rab, bahan_bakus = [], suppliers = [] } = props;
 
     const [loading, setLoading] = useState(false);
-    const [tipeMode, setTipeMode] = useState(tipe_rab || 'bahan'); // 'bahan' | 'operasional'
+    const tipeMode = rab.tipe || 'bahan';
 
-    // STATE UTAMA FORM
+    // INITIAL FORM DATA FOR BAHAN
     const [formBahan, setFormBahan] = useState({
         tipe: 'bahan',
-        tanggal: new Date().toISOString().slice(0, 10),
-        nama_menu: '',
-        qty_porsi_kecil: '', 
-        harga_porsi_kecil: 8000,
-        qty_porsi_besar: '', 
-        harga_porsi_besar: 10000,
-        items: [{ id: Date.now(), bahan_baku_id: '', supplier_id: '', qty: '', harga_satuan: '', subtotal: 0 }]
+        tanggal: rab.tanggal || new Date().toISOString().slice(0, 10),
+        nama_menu: rab.nama_menu || '',
+        qty_porsi_kecil: rab.qty_porsi_kecil || 0, 
+        harga_porsi_kecil: rab.harga_porsi_kecil || 8000,
+        qty_porsi_besar: rab.qty_porsi_besar || 0, 
+        harga_porsi_besar: rab.harga_porsi_besar || 10000,
+        items: rab.details && rab.details.length > 0 ? rab.details.map(d => ({
+            id: d.id,
+            bahan_baku_id: d.master_bahan_baku_id || '',
+            supplier_id: d.supplier_id || '',
+            qty: d.qty || '',
+            harga_satuan: d.harga_satuan || '',
+            subtotal: d.subtotal || 0
+        })) : [{ id: Date.now(), bahan_baku_id: '', supplier_id: '', qty: '', harga_satuan: '', subtotal: 0 }]
     });
 
+    // INITIAL FORM DATA FOR OPERASIONAL
     const [formOps, setFormOps] = useState({
         tipe: 'operasional',
-        kategori_pengadaan: 'Operasional', // 'Insentif Fasilitas' | 'Operasional'
-        tanggal: new Date().toISOString().slice(0, 10),
-        nama_menu: '',
-        total_pagu: '',
-        items: [{ id: Date.now(), nama_pengadaan: '', supplier_id: '', qty: '', harga_satuan: '', subtotal: 0 }]
+        kategori_pengadaan: rab.kategori_pengadaan || 'Operasional',
+        tanggal: rab.tanggal || new Date().toISOString().slice(0, 10),
+        nama_menu: rab.nama_menu || '',
+        total_pagu: rab.total_pagu || '',
+        items: rab.details && rab.details.length > 0 ? rab.details.map(d => ({
+            id: d.id,
+            nama_pengadaan: d.nama_pengadaan || '',
+            supplier_id: d.supplier_id || '',
+            qty: d.qty || '',
+            harga_satuan: d.harga_satuan || '',
+            subtotal: d.subtotal || 0
+        })) : [{ id: Date.now(), nama_pengadaan: '', supplier_id: '', qty: '', harga_satuan: '', subtotal: 0 }]
     });
 
     const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
 
-    // CALCULATIONS UNTUK BAHAN
+    // CALCULATIONS
     const totalPaguBahan = useMemo(() => {
         return (Number(formBahan.qty_porsi_kecil) * Number(formBahan.harga_porsi_kecil)) + 
                (Number(formBahan.qty_porsi_besar) * Number(formBahan.harga_porsi_besar));
@@ -51,7 +66,6 @@ export default function RabCreate() {
 
     const selisihBahan = totalPaguBahan - totalBelanjaBahan;
 
-    // CALCULATIONS UNTUK OPERASIONAL
     const totalPaguOps = useMemo(() => {
         return Number(formOps.total_pagu) || 0;
     }, [formOps.total_pagu]);
@@ -128,8 +142,8 @@ export default function RabCreate() {
         }));
     };
 
-    // SUBMIT FORM
-    const submitRab = (e) => {
+    // SUBMIT REVISI RAB
+    const submitRevisiRab = (e) => {
         e.preventDefault();
 
         if (tipeMode === 'operasional') {
@@ -138,16 +152,16 @@ export default function RabCreate() {
             }
 
             setLoading(true);
-            router.post('/rab', { 
+            router.put(`/rab/${rab.id}`, { 
                 ...formOps, 
                 tipe: 'operasional', 
                 total_pagu: totalPaguOps, 
                 total_belanja: totalBelanjaOps, 
                 selisih: selisihOps 
             }, {
-                onSuccess: () => toast.success('RAB Operasional & PO berhasil dibuat!'),
+                onSuccess: () => toast.success('RAB Operasional & PO berhasil direvisi!'),
                 onError: () => {
-                    toast.error('Gagal menyimpan RAB Operasional. Periksa input Anda.');
+                    toast.error('Gagal merevisi RAB Operasional.');
                     setLoading(false);
                 }
             });
@@ -157,16 +171,16 @@ export default function RabCreate() {
             }
 
             setLoading(true);
-            router.post('/rab', { 
+            router.put(`/rab/${rab.id}`, { 
                 ...formBahan, 
                 tipe: 'bahan', 
                 total_pagu: totalPaguBahan, 
                 total_belanja: totalBelanjaBahan, 
                 selisih: selisihBahan 
             }, {
-                onSuccess: () => toast.success('RAB Bahan Baku & PO berhasil dibuat!'),
+                onSuccess: () => toast.success('RAB Bahan Baku & PO berhasil direvisi!'),
                 onError: () => {
-                    toast.error('Gagal menyimpan RAB Bahan Baku. Periksa input Anda.');
+                    toast.error('Gagal merevisi RAB Bahan Baku.');
                     setLoading(false);
                 }
             });
@@ -180,53 +194,30 @@ export default function RabCreate() {
             {/* HEADER FORM */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-800">
-                        {tipeMode === 'operasional' ? 'Buat RAB Operasional Baru' : 'Buat RAB Bahan Baku Baru'}
-                    </h2>
-                    <p className="text-slate-500 text-sm mt-1">PO akan otomatis di-generate per supplier terpilih.</p>
+                    <div className="flex items-center gap-3">
+                        <span className="bg-amber-100 text-amber-800 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">
+                            Revisi RAB #{rab.id}
+                        </span>
+                        <h2 className="text-2xl font-bold text-slate-800">
+                            {tipeMode === 'operasional' ? 'Revisi RAB Operasional' : 'Revisi RAB Bahan Baku'}
+                        </h2>
+                    </div>
+                    <p className="text-slate-500 text-sm mt-1">Revisi RAB akan memperbarui data PO dan seluruh laporan terkait secara otomatis.</p>
                 </div>
                 <div className="flex gap-3 w-full md:w-auto bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
                     <Link 
                         href="/rab"
                         className="w-full md:w-auto px-6 py-2.5 rounded-xl bg-slate-50 text-slate-600 font-bold text-xs uppercase hover:bg-slate-100 flex items-center justify-center gap-2 transition-all shrink-0"
                     >
-                        <ArrowLeft size={16} /> Kembali
+                        <ArrowLeft size={16} /> Batal / Kembali
                     </Link>
                 </div>
             </div>
 
-            {/* TOGGLE MODES */}
-            <div className="flex gap-3 bg-slate-100 p-1.5 rounded-2xl w-max">
-                <button
-                    type="button"
-                    onClick={() => setTipeMode('bahan')}
-                    className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${
-                        tipeMode === 'bahan' 
-                        ? 'bg-blue-600 text-white shadow-md' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                    <Box size={16} /> RAB Bahan Baku
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setTipeMode('operasional')}
-                    className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${
-                        tipeMode === 'operasional' 
-                        ? 'bg-amber-600 text-white shadow-md' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                    <Layers size={16} /> RAB Operasional
-                </button>
-            </div>
-
-            <form onSubmit={submitRab} className="space-y-6">
+            <form onSubmit={submitRevisiRab} className="space-y-6">
                 
                 {tipeMode === 'bahan' ? (
-                    /* ======================================================== */
-                    /* FORM MODE: RAB BAHAN BAKU                                */
-                    /* ======================================================== */
+                    /* FORM REVISI RAB BAHAN BAKU */
                     <>
                         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200/60 shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-8 relative overflow-hidden">
                             <div className="lg:col-span-7 space-y-6 z-10">
@@ -276,7 +267,7 @@ export default function RabCreate() {
                                     <h2 className="font-black text-slate-800 text-lg flex items-center gap-2">
                                         <Box size={20} className="text-blue-500"/> Rincian Belanja Bahan Baku
                                     </h2>
-                                    <p className="text-slate-500 text-xs mt-1 font-medium">Data PO dipisah per supplier otomatis.</p>
+                                    <p className="text-slate-500 text-xs mt-1 font-medium">Revisi rincian bahan akan memperbarui PO otomatis.</p>
                                 </div>
                                 <button type="button" onClick={addBahanRow} className="px-5 py-3 bg-slate-900 text-white font-black text-xs uppercase tracking-widest rounded-xl flex items-center gap-2 hover:bg-blue-600 transition-all shadow-md shrink-0">
                                     <Plus size={16}/> <span className="hidden sm:inline">Tambah Item</span>
@@ -287,7 +278,7 @@ export default function RabCreate() {
                                 <AnimatePresence>
                                     {formBahan.items.map((item, index) => (
                                         <motion.div 
-                                            key={item.id}
+                                            key={item.id || index}
                                             initial={{ opacity: 0, y: -20, scale: 0.95 }}
                                             animate={{ opacity: 1, y: 0, scale: 1 }}
                                             exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
@@ -351,9 +342,7 @@ export default function RabCreate() {
                         </div>
                     </>
                 ) : (
-                    /* ======================================================== */
-                    /* FORM MODE: RAB OPERASIONAL                               */
-                    /* ======================================================== */
+                    /* FORM REVISI RAB OPERASIONAL */
                     <>
                         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200/60 shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-8 relative overflow-hidden">
                             <div className="lg:col-span-7 space-y-6 z-10">
@@ -385,12 +374,12 @@ export default function RabCreate() {
 
                                     <div className="sm:col-span-2">
                                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Deskripsi / Judul Pengadaan</label>
-                                        <input type="text" name="nama_menu" placeholder="Contoh: Belanja Operasional Dapur & Listrik..." value={formOps.nama_menu} onChange={handleOpsMainChange} className="w-full bg-slate-50 border border-slate-200 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 rounded-xl p-3.5 font-bold text-sm text-slate-700 transition-all" />
+                                        <input type="text" name="nama_menu" placeholder="Contoh: Belanja Operasional Dapur..." value={formOps.nama_menu} onChange={handleOpsMainChange} className="w-full bg-slate-50 border border-slate-200 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 rounded-xl p-3.5 font-bold text-sm text-slate-700 transition-all" />
                                     </div>
 
                                     <div className="sm:col-span-2 bg-amber-50/50 border border-amber-100 p-4 rounded-2xl group focus-within:border-amber-300 transition-all">
                                         <label className="text-[10px] font-black uppercase text-amber-700 block mb-2 tracking-widest">Alokasi Pagu Anggaran Operasional (Rp) <span className="text-rose-500">*</span></label>
-                                        <input type="number" min="0" required name="total_pagu" value={formOps.total_pagu} onChange={handleOpsMainChange} placeholder="Masukkan nominal pagu anggaran..." className="w-full bg-white border border-slate-200 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-xl p-3 font-black text-xl text-slate-800 transition-all placeholder:text-slate-300" />
+                                        <input type="number" min="0" required name="total_pagu" value={formOps.total_pagu} onChange={handleOpsMainChange} placeholder="Masukkan nominal pagu..." className="w-full bg-white border border-slate-200 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-xl p-3 font-black text-xl text-slate-800 transition-all placeholder:text-slate-300" />
                                     </div>
                                 </div>
                             </div>
@@ -403,7 +392,7 @@ export default function RabCreate() {
                                 </div>
                                 <div className="mt-6 flex items-center gap-2.5 bg-white/10 w-max px-4 py-2.5 rounded-xl backdrop-blur-sm border border-white/10 relative z-10">
                                     <CheckCircle2 size={16} className="text-amber-200"/>
-                                    <span className="text-xs font-bold text-amber-50 tracking-wide">Pagu Alokasi Operasional Terpisah</span>
+                                    <span className="text-xs font-bold text-amber-50 tracking-wide">Pagu Alokasi Operasional</span>
                                 </div>
                             </div>
                         </div>
@@ -415,7 +404,7 @@ export default function RabCreate() {
                                     <h2 className="font-black text-slate-800 text-lg flex items-center gap-2">
                                         <Layers size={20} className="text-amber-500"/> Rincian Belanja Operasional
                                     </h2>
-                                    <p className="text-slate-500 text-xs mt-1 font-medium">Rincian: Pengadaan, Supplier, Qty, Harga Satuan, Subtotal.</p>
+                                    <p className="text-slate-500 text-xs mt-1 font-medium">Pengadaan, Supplier, Qty, Harga Satuan, Subtotal.</p>
                                 </div>
                                 <button type="button" onClick={addOpsRow} className="px-5 py-3 bg-slate-900 text-white font-black text-xs uppercase tracking-widest rounded-xl flex items-center gap-2 hover:bg-amber-600 transition-all shadow-md shrink-0">
                                     <Plus size={16}/> <span className="hidden sm:inline">Tambah Item</span>
@@ -426,7 +415,7 @@ export default function RabCreate() {
                                 <AnimatePresence>
                                     {formOps.items.map((item, index) => (
                                         <motion.div 
-                                            key={item.id}
+                                            key={item.id || index}
                                             initial={{ opacity: 0, y: -20, scale: 0.95 }}
                                             animate={{ opacity: 1, y: 0, scale: 1 }}
                                             exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
@@ -441,7 +430,7 @@ export default function RabCreate() {
                                                 <input 
                                                     type="text" 
                                                     required 
-                                                    placeholder="Contoh: Insentif Staf / Pembelian Alat..." 
+                                                    placeholder="Contoh: Insentif Staf..." 
                                                     value={item.nama_pengadaan} 
                                                     onChange={(e) => handleOpsItemChange(item.id, 'nama_pengadaan', e.target.value)} 
                                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-sm text-slate-800 outline-none focus:border-amber-500 focus:bg-white transition-all" 
@@ -492,42 +481,32 @@ export default function RabCreate() {
                     </>
                 )}
 
-                {/* FOOTER STATUS ANGGARAN - Sticky Bottom */}
+                {/* FOOTER STATUS REVISI ANGGARAN */}
                 <div className="sticky bottom-6 z-40 mt-8">
                     {tipeMode === 'operasional' ? (
                         <div className={`p-6 md:p-8 rounded-[2rem] border-2 shadow-xl shadow-slate-200/50 flex flex-col md:flex-row justify-between items-center gap-6 transition-all duration-500 backdrop-blur-md ${selisihOps < 0 ? 'bg-amber-50/95 border-amber-300' : 'bg-emerald-50/95 border-emerald-300'}`}>
                             <div>
-                                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5"><Receipt size={14}/> Status Pagu Operasional ({formOps.kategori_pengadaan})</p>
+                                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5"><Receipt size={14}/> Status Revisi Pagu Operasional ({formOps.kategori_pengadaan})</p>
                                 <h2 className={`text-2xl md:text-3xl font-black mt-1 ${selisihOps < 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
                                     {selisihOps < 0 ? 'Defisit: ' : 'Sisa: '} {fmt(Math.abs(selisihOps))}
                                 </h2>
-                                {selisihOps < 0 && (
-                                    <p className="text-amber-700 text-xs font-bold mt-2 flex items-center gap-1.5 bg-amber-200/50 px-3 py-2 rounded-lg w-max">
-                                        <AlertTriangle size={14}/> Melebihi alokasi pagu operasional!
-                                    </p>
-                                )}
                             </div>
                             <button type="submit" disabled={loading} className="w-full md:w-auto bg-amber-600 hover:bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-amber-600/30 shrink-0">
                                 {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20}/>} 
-                                {loading ? 'Memproses...' : 'Simpan RAB Operasional'}
+                                {loading ? 'Menyimpan Revisi...' : 'Simpan Revisi RAB Operasional'}
                             </button>
                         </div>
                     ) : (
                         <div className={`p-6 md:p-8 rounded-[2rem] border-2 shadow-xl shadow-slate-200/50 flex flex-col md:flex-row justify-between items-center gap-6 transition-all duration-500 backdrop-blur-md ${selisihBahan < 0 ? 'bg-amber-50/95 border-amber-300' : 'bg-emerald-50/95 border-emerald-300'}`}>
                             <div>
-                                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5"><Receipt size={14}/> Status Anggaran Bahan Baku</p>
+                                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5"><Receipt size={14}/> Status Revisi Anggaran Bahan Baku</p>
                                 <h2 className={`text-2xl md:text-3xl font-black mt-1 ${selisihBahan < 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
                                     {selisihBahan < 0 ? 'Defisit: ' : 'Sisa: '} {fmt(Math.abs(selisihBahan))}
                                 </h2>
-                                {selisihBahan < 0 && (
-                                    <p className="text-amber-700 text-xs font-bold mt-2 flex items-center gap-1.5 bg-amber-200/50 px-3 py-2 rounded-lg w-max">
-                                        <AlertTriangle size={14}/> Melebihi batas pagu!
-                                    </p>
-                                )}
                             </div>
                             <button type="submit" disabled={loading} className="w-full md:w-auto bg-blue-600 hover:bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/30 shrink-0">
                                 {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20}/>} 
-                                {loading ? 'Memproses...' : 'Simpan RAB Bahan'}
+                                {loading ? 'Menyimpan Revisi...' : 'Simpan Revisi RAB Bahan'}
                             </button>
                         </div>
                     )}

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class RabDetail extends Model
 {
     protected $fillable = [
-        'rab_id', 'supplier_id', 'master_bahan_baku_id', 'qty', 'harga_satuan', 'subtotal'
+        'rab_id', 'supplier_id', 'master_bahan_baku_id', 'nama_pengadaan', 'qty', 'harga_satuan', 'subtotal'
     ];
 
     public function rab(): BelongsTo

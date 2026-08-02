@@ -10,6 +10,7 @@ class PoDetail extends Model
     protected $fillable = [
         'purchase_order_id', 
         'master_bahan_baku_id', 
+        'nama_pengadaan',
         'supplier_id', 
         'qty', 
         'harga_satuan', 

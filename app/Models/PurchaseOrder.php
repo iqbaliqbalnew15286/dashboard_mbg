@@ -10,7 +10,7 @@ class PurchaseOrder extends Model
     use HasFactory;
 
     protected $fillable = [
-        'nomor_po', 'tanggal_pesan', 'tanggal_diberikan', 
+        'rab_id', 'nomor_po', 'tanggal_pesan', 'tanggal_diberikan', 
         'kategori_biaya', 'grand_total', 'status'
     ];
 
@@ -18,5 +18,10 @@ class PurchaseOrder extends Model
     public function details()
     {
         return $this->hasMany(PoDetail::class, 'purchase_order_id', 'id');
+    }
+
+    public function rab()
+    {
+        return $this->belongsTo(Rab::class, 'rab_id');
     }
 }
