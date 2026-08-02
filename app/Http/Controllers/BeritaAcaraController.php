@@ -6,16 +6,31 @@ use App\Models\BeritaAcara;
 use App\Models\PurchaseOrder;
 use App\Models\KategoriBiaya;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Artisan;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
 
 class BeritaAcaraController extends Controller
 {
+    private function ensureSchemaUpdated()
+    {
+        if (!Schema::hasColumn('berita_acaras', 'jenis_ba')) {
+            try {
+                Artisan::call('migrate', ['--force' => true]);
+            } catch (\Throwable $e) {
+                // Ignore if permission denied
+            }
+        }
+    }
+
     public function index(Request $request)
     {
+        $this->ensureSchemaUpdated();
+
         $query = BeritaAcara::with(['purchaseOrder.details.supplier', 'purchaseOrder.details.bahanBaku']);
 
-        if ($request->filled('jenis_ba')) {
+        if (Schema::hasColumn('berita_acaras', 'jenis_ba') && $request->filled('jenis_ba')) {
             $query->where('jenis_ba', $request->jenis_ba);
         }
 
@@ -43,6 +58,8 @@ class BeritaAcaraController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensureSchemaUpdated();
+
         $validated = $request->validate([
             'tanggal_ba'        => 'required|date',
             'nomor_ba'          => 'nullable|string|unique:berita_acaras,nomor_ba',
@@ -53,13 +70,18 @@ class BeritaAcaraController extends Controller
 
         $nomorBa = $validated['nomor_ba'] ?? 'BA-MBG-' . date('Ymd') . '-' . strtoupper(Str::random(4));
 
-        BeritaAcara::create([
+        $baData = [
             'tanggal_ba'        => $validated['tanggal_ba'],
             'nomor_ba'          => $nomorBa,
-            'jenis_ba'          => $validated['jenis_ba'],
             'purchase_order_id' => $validated['purchase_order_id'],
             'keterangan'        => $validated['keterangan'],
-        ]);
+        ];
+
+        if (Schema::hasColumn('berita_acaras', 'jenis_ba')) {
+            $baData['jenis_ba'] = $validated['jenis_ba'];
+        }
+
+        BeritaAcara::create($baData);
 
         PurchaseOrder::where('id', $validated['purchase_order_id'])->update(['status' => 'approved']);
 
@@ -68,6 +90,7 @@ class BeritaAcaraController extends Controller
 
     public function destroy($id)
     {
+        $this->ensureSchemaUpdated();
         $ba = BeritaAcara::findOrFail($id);
         
         if ($ba->purchaseOrder) {

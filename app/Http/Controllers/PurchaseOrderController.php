@@ -9,14 +9,36 @@ use App\Models\Supplier;
 use App\Models\KategoriBiaya;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Artisan;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
 
 class PurchaseOrderController extends Controller
 {
+    private function ensureSchemaUpdated()
+    {
+        if (!Schema::hasColumn('purchase_orders', 'rab_id') || 
+            !Schema::hasColumn('rabs', 'tipe') ||
+            !Schema::hasColumn('po_details', 'nama_pengadaan')) {
+            try {
+                Artisan::call('migrate', ['--force' => true]);
+            } catch (\Throwable $e) {
+                // Ignore if permission denied
+            }
+        }
+    }
+
     public function create(Request $request)
     {
-        $query = PurchaseOrder::with(['details.bahanBaku', 'details.supplier', 'rab']);
+        $this->ensureSchemaUpdated();
+
+        $withRelations = ['details.bahanBaku', 'details.supplier'];
+        if (Schema::hasColumn('purchase_orders', 'rab_id')) {
+            $withRelations[] = 'rab';
+        }
+
+        $query = PurchaseOrder::with($withRelations);
 
         if ($request->filled('kategori')) {
             $query->where('kategori_biaya', $request->kategori);
@@ -43,29 +65,34 @@ class PurchaseOrderController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensureSchemaUpdated();
+
         $validated = $request->validate([
             'kategori_biaya'        => 'required|string',
             'nomor_po'              => 'nullable|string|unique:purchase_orders,nomor_po',
             'tanggal_pesan'         => 'required|date',
             'tanggal_diberikan'     => 'nullable|date',
-            'grand_total'           => 'required|numeric|min:0',
             'items'                 => 'required|array|min:1',
             'items.*.bahan_baku_id' => 'required|exists:master_bahan_bakus,id',
             'items.*.supplier_id'   => 'required|exists:suppliers,id',
             'items.*.qty'           => 'required|numeric|min:0.01',
             'items.*.harga_satuan'  => 'required|numeric|min:0',
-            'items.*.subtotal'      => 'required|numeric|min:0',
         ]);
 
-        DB::transaction(function () use ($validated) {
-            $nomorPo = $validated['nomor_po'] ?? 'PO-MBG-' . date('Ymd') . '-' . strtoupper(Str::random(4));
+        $nomorPo = $validated['nomor_po'] ?? 'PO-' . date('Ymd') . '-' . strtoupper(Str::random(4));
+
+        DB::transaction(function () use ($validated, $nomorPo) {
+            $grandTotal = 0;
+            foreach ($validated['items'] as $item) {
+                $grandTotal += ($item['qty'] * $item['harga_satuan']);
+            }
 
             $po = PurchaseOrder::create([
                 'nomor_po'          => $nomorPo,
+                'kategori_biaya'    => $validated['kategori_biaya'],
                 'tanggal_pesan'     => $validated['tanggal_pesan'],
                 'tanggal_diberikan' => $validated['tanggal_diberikan'] ?? null,
-                'kategori_biaya'    => $validated['kategori_biaya'],
-                'grand_total'       => $validated['grand_total'],
+                'grand_total'       => $grandTotal,
                 'status'            => 'draft'
             ]);
 
@@ -76,52 +103,74 @@ class PurchaseOrderController extends Controller
                     'supplier_id'          => $item['supplier_id'],
                     'qty'                  => $item['qty'],
                     'harga_satuan'         => $item['harga_satuan'],
-                    'subtotal'             => $item['subtotal']
+                    'subtotal'             => ($item['qty'] * $item['harga_satuan'])
                 ]);
             }
         });
 
-        return redirect('/transaksi')->with('success', 'Purchase Order Berhasil Disimpan');
+        return redirect('/transaksi')->with('success', 'Purchase Order berhasil dibuat');
     }
-    
+
+    public function show($id)
+    {
+        $this->ensureSchemaUpdated();
+
+        $withRelations = ['details.bahanBaku', 'details.supplier'];
+        if (Schema::hasColumn('purchase_orders', 'rab_id')) {
+            $withRelations[] = 'rab';
+        }
+
+        $purchaseOrder = PurchaseOrder::with($withRelations)->findOrFail($id);
+        return Inertia::render('po/Show', ['po' => $purchaseOrder]);
+    }
+
     public function edit($id)
     {
-        $purchaseOrder = PurchaseOrder::with('details')->findOrFail($id);
+        $this->ensureSchemaUpdated();
 
+        $withRelations = ['details.bahanBaku', 'details.supplier'];
+        if (Schema::hasColumn('purchase_orders', 'rab_id')) {
+            $withRelations[] = 'rab';
+        }
+
+        $purchaseOrder = PurchaseOrder::with($withRelations)->findOrFail($id);
+        
         return Inertia::render('po/Edit', [
-            'po'           => $purchaseOrder,
-            'bahan_bakus'  => MasterBahanBaku::all(),
-            'suppliers'    => Supplier::all(), 
+            'po'              => $purchaseOrder,
+            'bahan_bakus'     => MasterBahanBaku::all(),
+            'suppliers'       => Supplier::all(),
+            'kategori_biayas' => KategoriBiaya::all()
         ]);
     }
 
     public function update(Request $request, $id)
     {
+        $this->ensureSchemaUpdated();
+
         $purchaseOrder = PurchaseOrder::findOrFail($id);
 
         $validated = $request->validate([
             'kategori_biaya'        => 'required|string',
-            'nomor_po'              => 'nullable|string|unique:purchase_orders,nomor_po,' . $purchaseOrder->id,
             'tanggal_pesan'         => 'required|date',
             'tanggal_diberikan'     => 'nullable|date',
-            'grand_total'           => 'required|numeric|min:0',
             'items'                 => 'required|array|min:1',
             'items.*.bahan_baku_id' => 'required|exists:master_bahan_bakus,id',
             'items.*.supplier_id'   => 'required|exists:suppliers,id',
             'items.*.qty'           => 'required|numeric|min:0.01',
             'items.*.harga_satuan'  => 'required|numeric|min:0',
-            'items.*.subtotal'      => 'required|numeric|min:0',
         ]);
 
         DB::transaction(function () use ($validated, $purchaseOrder) {
-            $nomorPo = $validated['nomor_po'] ?? $purchaseOrder->nomor_po;
+            $grandTotal = 0;
+            foreach ($validated['items'] as $item) {
+                $grandTotal += ($item['qty'] * $item['harga_satuan']);
+            }
 
             $purchaseOrder->update([
-                'nomor_po'          => $nomorPo,
+                'kategori_biaya'    => $validated['kategori_biaya'],
                 'tanggal_pesan'     => $validated['tanggal_pesan'],
                 'tanggal_diberikan' => $validated['tanggal_diberikan'] ?? null,
-                'kategori_biaya'    => $validated['kategori_biaya'],
-                'grand_total'       => $validated['grand_total'],
+                'grand_total'       => $grandTotal
             ]);
 
             $purchaseOrder->details()->delete();
@@ -133,7 +182,7 @@ class PurchaseOrderController extends Controller
                     'supplier_id'          => $item['supplier_id'],
                     'qty'                  => $item['qty'],
                     'harga_satuan'         => $item['harga_satuan'],
-                    'subtotal'             => $item['subtotal']
+                    'subtotal'             => ($item['qty'] * $item['harga_satuan'])
                 ]);
             }
         });
@@ -143,18 +192,23 @@ class PurchaseOrderController extends Controller
 
     public function destroy($id)
     {
+        $this->ensureSchemaUpdated();
         $purchaseOrder = PurchaseOrder::findOrFail($id);
         $purchaseOrder->delete();
 
         return redirect()->back()->with('success', 'Purchase Order berhasil dihapus dari sistem.');
     }
 
-    // =========================================================================
-    // HALAMAN TRANSAKSI (Dioptimasi dengan Pagination)
-    // =========================================================================
     public function transaksi(Request $request)
     {
-        $query = PurchaseOrder::with(['details.bahanBaku', 'details.supplier', 'rab']);
+        $this->ensureSchemaUpdated();
+
+        $withRelations = ['details.bahanBaku', 'details.supplier'];
+        if (Schema::hasColumn('purchase_orders', 'rab_id')) {
+            $withRelations[] = 'rab';
+        }
+
+        $query = PurchaseOrder::with($withRelations);
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -188,12 +242,12 @@ class PurchaseOrderController extends Controller
         ]);
     }
 
-    // =========================================================================
-    // API UNTUK STOK TERIMA (Ringan, khusus JSON)
-    // =========================================================================
     public function searchPoForTerima($nomor_po)
     {
-        $po = PurchaseOrder::with(['details.bahanBaku', 'details.supplier'])
+        $this->ensureSchemaUpdated();
+
+        $withRelations = ['details.bahanBaku', 'details.supplier'];
+        $po = PurchaseOrder::with($withRelations)
             ->where('nomor_po', $nomor_po)
             ->first();
 
@@ -205,21 +259,21 @@ class PurchaseOrderController extends Controller
             return [
                 'bahan_baku_id' => $detail->master_bahan_baku_id,
                 'supplier_id'   => $detail->supplier_id,
-                'nama_bahan'    => $detail->bahanBaku->nama_barang ?? 'Barang Tidak Ditemukan',
-                'nama_supplier' => $detail->supplier->nama_perusahaan ?? '-',
-                'qty_pesan'     => $detail->qty,
-                'qty_terima'    => 0, 
-                'harga_satuan'  => $detail->harga_satuan,
-                'satuan'        => $detail->bahanBaku->satuan ?? '-'
+                'nama_barang'   => $detail->bahan_baku ? $detail->bahan_baku->nama_barang : ($detail->nama_pengadaan ?? 'Bahan / Pengadaan'),
+                'satuan'        => $detail->bahan_baku ? $detail->bahan_baku->satuan : 'Porsi/Unit',
+                'qty_po'        => (float) $detail->qty,
+                'harga_satuan'  => (float) $detail->harga_satuan,
+                'supplier_nama' => $detail->supplier ? $detail->supplier->nama_perusahaan : '-'
             ];
         });
 
         return response()->json([
-            'po' => [
-                'no_po' => $po->nomor_po,
-                'tgl_pesan' => $po->tanggal_pesan,
-            ],
-            'items' => $items
+            'status'         => 'success',
+            'po_id'          => $po->id,
+            'nomor_po'       => $po->nomor_po,
+            'kategori_biaya' => $po->kategori_biaya,
+            'tanggal_pesan'  => $po->tanggal_pesan,
+            'items'          => $items
         ]);
     }
 }

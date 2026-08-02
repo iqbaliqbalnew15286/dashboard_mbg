@@ -12,21 +12,52 @@ use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Artisan;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
 
 class RabController extends Controller
 {
+    /**
+     * Memastikan schema database di server hosting up-to-date
+     */
+    private function ensureSchemaUpdated()
+    {
+        if (!Schema::hasColumn('purchase_orders', 'rab_id') || 
+            !Schema::hasColumn('rabs', 'tipe') || 
+            !Schema::hasColumn('rabs', 'kategori_pengadaan') ||
+            !Schema::hasColumn('rab_details', 'nama_pengadaan')) {
+            try {
+                Artisan::call('migrate', ['--force' => true]);
+            } catch (\Throwable $e) {
+                // Ignore if permission denied
+            }
+        }
+    }
+
     public function index(Request $request)
     {
-        $query = Rab::with(['details.bahanBaku', 'details.supplier', 'purchaseOrders']);
+        $this->ensureSchemaUpdated();
+
+        $hasRabId = Schema::hasColumn('purchase_orders', 'rab_id');
+        $hasKategori = Schema::hasColumn('rabs', 'kategori_pengadaan');
+        $hasTipe = Schema::hasColumn('rabs', 'tipe');
+
+        $withRelations = ['details.bahanBaku', 'details.supplier'];
+        if ($hasRabId) {
+            $withRelations[] = 'purchaseOrders';
+        }
+
+        $query = Rab::with($withRelations);
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function($q) use ($search, $hasKategori) {
                 $q->where('nama_menu', 'like', "%{$search}%")
-                  ->orWhere('kategori_pengadaan', 'like', "%{$search}%")
                   ->orWhere('tanggal', 'like', "%{$search}%");
+                if ($hasKategori) {
+                    $q->orWhere('kategori_pengadaan', 'like', "%{$search}%");
+                }
             });
         }
 
@@ -38,7 +69,7 @@ class RabController extends Controller
             $query->whereDate('tanggal', '<=', $request->tgl_akhir);
         }
 
-        if ($request->filled('tipe')) {
+        if ($hasTipe && $request->filled('tipe')) {
             $query->where('tipe', $request->tipe);
         }
 
@@ -66,6 +97,7 @@ class RabController extends Controller
 
     public function create(Request $request)
     {
+        $this->ensureSchemaUpdated();
         $tipe = $request->query('tipe', 'bahan');
 
         return Inertia::render('rab/Create', [
@@ -77,7 +109,9 @@ class RabController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensureSchemaUpdated();
         $tipe = $request->input('tipe', 'bahan');
+        $hasRabId = Schema::hasColumn('purchase_orders', 'rab_id');
 
         if ($tipe === 'operasional') {
             $validated = $request->validate([
@@ -93,7 +127,7 @@ class RabController extends Controller
                 'items.*.harga_satuan'   => 'required|numeric|min:0',
             ]);
 
-            DB::transaction(function () use ($validated) {
+            DB::transaction(function () use ($validated, $hasRabId) {
                 $totalPagu = (float) $validated['total_pagu'];
                 $totalBelanja = 0;
                 foreach ($validated['items'] as &$item) {
@@ -104,26 +138,37 @@ class RabController extends Controller
 
                 $selisih = $totalPagu - $totalBelanja;
 
-                $rab = Rab::create([
-                    'tipe'               => 'operasional',
-                    'kategori_pengadaan' => $validated['kategori_pengadaan'],
-                    'tanggal'            => $validated['tanggal'],
-                    'nama_menu'          => $validated['nama_menu'] ?? ('Pengadaan ' . $validated['kategori_pengadaan']),
-                    'total_pagu'         => $totalPagu,
-                    'total_belanja'      => $totalBelanja,
-                    'selisih'            => $selisih,
-                ]);
+                $rabData = [
+                    'tanggal'       => $validated['tanggal'],
+                    'nama_menu'     => $validated['nama_menu'] ?? ('Pengadaan ' . $validated['kategori_pengadaan']),
+                    'total_pagu'    => $totalPagu,
+                    'total_belanja' => $totalBelanja,
+                    'selisih'       => $selisih,
+                ];
+
+                if (Schema::hasColumn('rabs', 'tipe')) {
+                    $rabData['tipe'] = 'operasional';
+                }
+                if (Schema::hasColumn('rabs', 'kategori_pengadaan')) {
+                    $rabData['kategori_pengadaan'] = $validated['kategori_pengadaan'];
+                }
+
+                $rab = Rab::create($rabData);
 
                 $itemsPerSupplier = [];
                 foreach ($validated['items'] as $item) {
-                    RabDetail::create([
-                        'rab_id'         => $rab->id,
-                        'supplier_id'    => $item['supplier_id'],
-                        'nama_pengadaan' => $item['nama_pengadaan'],
-                        'qty'            => $item['qty'],
-                        'harga_satuan'   => $item['harga_satuan'],
-                        'subtotal'       => $item['subtotal']
-                    ]);
+                    $detailData = [
+                        'rab_id'       => $rab->id,
+                        'supplier_id'  => $item['supplier_id'],
+                        'qty'          => $item['qty'],
+                        'harga_satuan' => $item['harga_satuan'],
+                        'subtotal'     => $item['subtotal']
+                    ];
+                    if (Schema::hasColumn('rab_details', 'nama_pengadaan')) {
+                        $detailData['nama_pengadaan'] = $item['nama_pengadaan'];
+                    }
+
+                    RabDetail::create($detailData);
                     $itemsPerSupplier[$item['supplier_id']][] = $item;
                 }
 
@@ -132,24 +177,33 @@ class RabController extends Controller
                     $poGrandTotal = collect($items)->sum('subtotal');
                     $nomorPo = 'PO-OPS-' . date('ymd', strtotime($validated['tanggal'])) . '-S' . $supplierId . '-' . strtoupper(Str::random(3));
 
-                    $po = PurchaseOrder::create([
-                        'rab_id'         => $rab->id,
+                    $poData = [
                         'nomor_po'       => $nomorPo,
                         'tanggal_pesan'  => $validated['tanggal'],
                         'kategori_biaya' => $validated['kategori_pengadaan'],
                         'grand_total'    => $poGrandTotal,
                         'status'         => 'draft'
-                    ]);
+                    ];
+
+                    if ($hasRabId) {
+                        $poData['rab_id'] = $rab->id;
+                    }
+
+                    $po = PurchaseOrder::create($poData);
 
                     foreach ($items as $item) {
-                        PoDetail::create([
+                        $poDetailData = [
                             'purchase_order_id' => $po->id,
                             'supplier_id'       => $supplierId,
-                            'nama_pengadaan'    => $item['nama_pengadaan'],
                             'qty'               => $item['qty'],
                             'harga_satuan'      => $item['harga_satuan'],
                             'subtotal'          => $item['subtotal']
-                        ]);
+                        ];
+                        if (Schema::hasColumn('po_details', 'nama_pengadaan')) {
+                            $poDetailData['nama_pengadaan'] = $item['nama_pengadaan'];
+                        }
+
+                        PoDetail::create($poDetailData);
                     }
                 }
             });
@@ -171,7 +225,7 @@ class RabController extends Controller
                 'items.*.harga_satuan'  => 'required|numeric|min:0',
             ]);
 
-            DB::transaction(function () use ($validated) {
+            DB::transaction(function () use ($validated, $hasRabId) {
                 $totalPorsiKecil = $validated['qty_porsi_kecil'] * $validated['harga_porsi_kecil'];
                 $totalPorsiBesar = $validated['qty_porsi_besar'] * $validated['harga_porsi_besar'];
                 $totalPagu       = $totalPorsiKecil + $totalPorsiBesar;
@@ -185,21 +239,28 @@ class RabController extends Controller
 
                 $selisih = $totalPagu - $totalBelanja;
 
-                $rab = Rab::create([
-                    'tipe'               => 'bahan',
-                    'kategori_pengadaan' => 'Bahan Baku',
-                    'tanggal'            => $validated['tanggal'],
-                    'nama_menu'          => $validated['nama_menu'],
-                    'qty_porsi_kecil'    => $validated['qty_porsi_kecil'],
-                    'harga_porsi_kecil'  => $validated['harga_porsi_kecil'],
-                    'total_porsi_kecil'  => $totalPorsiKecil,
-                    'qty_porsi_besar'    => $validated['qty_porsi_besar'],
-                    'harga_porsi_besar'  => $validated['harga_porsi_besar'],
-                    'total_porsi_besar'  => $totalPorsiBesar,
-                    'total_pagu'         => $totalPagu,
-                    'total_belanja'      => $totalBelanja,
-                    'selisih'            => $selisih,
-                ]);
+                $rabData = [
+                    'tanggal'           => $validated['tanggal'],
+                    'nama_menu'         => $validated['nama_menu'],
+                    'qty_porsi_kecil'   => $validated['qty_porsi_kecil'],
+                    'harga_porsi_kecil' => $validated['harga_porsi_kecil'],
+                    'total_porsi_kecil' => $totalPorsiKecil,
+                    'qty_porsi_besar'   => $validated['qty_porsi_besar'],
+                    'harga_porsi_besar' => $validated['harga_porsi_besar'],
+                    'total_porsi_besar' => $totalPorsiBesar,
+                    'total_pagu'        => $totalPagu,
+                    'total_belanja'     => $totalBelanja,
+                    'selisih'           => $selisih,
+                ];
+
+                if (Schema::hasColumn('rabs', 'tipe')) {
+                    $rabData['tipe'] = 'bahan';
+                }
+                if (Schema::hasColumn('rabs', 'kategori_pengadaan')) {
+                    $rabData['kategori_pengadaan'] = 'Bahan Baku';
+                }
+
+                $rab = Rab::create($rabData);
 
                 $itemsPerSupplier = [];
                 foreach ($validated['items'] as $item) {
@@ -219,14 +280,19 @@ class RabController extends Controller
                     $poGrandTotal = collect($items)->sum('subtotal');
                     $nomorPo = 'PO-RAB-' . date('ymd', strtotime($validated['tanggal'])) . '-S' . $supplierId . '-' . strtoupper(Str::random(3));
 
-                    $po = PurchaseOrder::create([
-                        'rab_id'         => $rab->id,
+                    $poData = [
                         'nomor_po'       => $nomorPo,
                         'tanggal_pesan'  => $validated['tanggal'],
                         'kategori_biaya' => 'Bahan Baku',
                         'grand_total'    => $poGrandTotal,
                         'status'         => 'draft'
-                    ]);
+                    ];
+
+                    if ($hasRabId) {
+                        $poData['rab_id'] = $rab->id;
+                    }
+
+                    $po = PurchaseOrder::create($poData);
 
                     foreach ($items as $item) {
                         PoDetail::create([
@@ -247,13 +313,27 @@ class RabController extends Controller
 
     public function show($id)
     {
-        $rab = Rab::with(['details.bahanBaku', 'details.supplier', 'purchaseOrders'])->findOrFail($id);
+        $this->ensureSchemaUpdated();
+
+        $withRelations = ['details.bahanBaku', 'details.supplier'];
+        if (Schema::hasColumn('purchase_orders', 'rab_id')) {
+            $withRelations[] = 'purchaseOrders';
+        }
+
+        $rab = Rab::with($withRelations)->findOrFail($id);
         return response()->json(['data' => $rab]);
     }
 
     public function edit($id)
     {
-        $rab = Rab::with(['details.bahanBaku', 'details.supplier', 'purchaseOrders'])->findOrFail($id);
+        $this->ensureSchemaUpdated();
+
+        $withRelations = ['details.bahanBaku', 'details.supplier'];
+        if (Schema::hasColumn('purchase_orders', 'rab_id')) {
+            $withRelations[] = 'purchaseOrders';
+        }
+
+        $rab = Rab::with($withRelations)->findOrFail($id);
 
         return Inertia::render('rab/Edit', [
             'rab'         => $rab,
@@ -264,7 +344,9 @@ class RabController extends Controller
 
     public function update(Request $request, $id)
     {
+        $this->ensureSchemaUpdated();
         $rab = Rab::findOrFail($id);
+        $hasRabId = Schema::hasColumn('purchase_orders', 'rab_id');
         $tipe = $request->input('tipe', $rab->tipe ?? 'bahan');
 
         if ($tipe === 'operasional') {
@@ -280,7 +362,7 @@ class RabController extends Controller
                 'items.*.harga_satuan'   => 'required|numeric|min:0',
             ]);
 
-            DB::transaction(function () use ($validated, $rab) {
+            DB::transaction(function () use ($validated, $rab, $hasRabId) {
                 $totalPagu = (float) $validated['total_pagu'];
                 $totalBelanja = 0;
                 foreach ($validated['items'] as &$item) {
@@ -291,57 +373,77 @@ class RabController extends Controller
 
                 $selisih = $totalPagu - $totalBelanja;
 
-                $rab->update([
-                    'tipe'               => 'operasional',
-                    'kategori_pengadaan' => $validated['kategori_pengadaan'],
-                    'tanggal'            => $validated['tanggal'],
-                    'nama_menu'          => $validated['nama_menu'] ?? ('Pengadaan ' . $validated['kategori_pengadaan']),
-                    'total_pagu'         => $totalPagu,
-                    'total_belanja'      => $totalBelanja,
-                    'selisih'            => $selisih,
-                ]);
+                $rabData = [
+                    'tanggal'       => $validated['tanggal'],
+                    'nama_menu'     => $validated['nama_menu'] ?? ('Pengadaan ' . $validated['kategori_pengadaan']),
+                    'total_pagu'    => $totalPagu,
+                    'total_belanja' => $totalBelanja,
+                    'selisih'       => $selisih,
+                ];
 
-                // Clear & re-insert details
+                if (Schema::hasColumn('rabs', 'tipe')) {
+                    $rabData['tipe'] = 'operasional';
+                }
+                if (Schema::hasColumn('rabs', 'kategori_pengadaan')) {
+                    $rabData['kategori_pengadaan'] = $validated['kategori_pengadaan'];
+                }
+
+                $rab->update($rabData);
+
                 $rab->details()->delete();
 
                 $itemsPerSupplier = [];
                 foreach ($validated['items'] as $item) {
-                    RabDetail::create([
-                        'rab_id'         => $rab->id,
-                        'supplier_id'    => $item['supplier_id'],
-                        'nama_pengadaan' => $item['nama_pengadaan'],
-                        'qty'            => $item['qty'],
-                        'harga_satuan'   => $item['harga_satuan'],
-                        'subtotal'       => $item['subtotal']
-                    ]);
+                    $detailData = [
+                        'rab_id'       => $rab->id,
+                        'supplier_id'  => $item['supplier_id'],
+                        'qty'          => $item['qty'],
+                        'harga_satuan' => $item['harga_satuan'],
+                        'subtotal'     => $item['subtotal']
+                    ];
+                    if (Schema::hasColumn('rab_details', 'nama_pengadaan')) {
+                        $detailData['nama_pengadaan'] = $item['nama_pengadaan'];
+                    }
+
+                    RabDetail::create($detailData);
                     $itemsPerSupplier[$item['supplier_id']][] = $item;
                 }
 
-                // Delete old POs linked to this RAB and recreate updated POs
-                PurchaseOrder::where('rab_id', $rab->id)->delete();
+                if ($hasRabId) {
+                    PurchaseOrder::where('rab_id', $rab->id)->delete();
+                }
 
                 foreach ($itemsPerSupplier as $supplierId => $items) {
                     $poGrandTotal = collect($items)->sum('subtotal');
                     $nomorPo = 'PO-OPS-' . date('ymd', strtotime($validated['tanggal'])) . '-S' . $supplierId . '-' . strtoupper(Str::random(3));
 
-                    $po = PurchaseOrder::create([
-                        'rab_id'         => $rab->id,
+                    $poData = [
                         'nomor_po'       => $nomorPo,
                         'tanggal_pesan'  => $validated['tanggal'],
                         'kategori_biaya' => $validated['kategori_pengadaan'],
                         'grand_total'    => $poGrandTotal,
                         'status'         => 'draft'
-                    ]);
+                    ];
+
+                    if ($hasRabId) {
+                        $poData['rab_id'] = $rab->id;
+                    }
+
+                    $po = PurchaseOrder::create($poData);
 
                     foreach ($items as $item) {
-                        PoDetail::create([
+                        $poDetailData = [
                             'purchase_order_id' => $po->id,
                             'supplier_id'       => $supplierId,
-                            'nama_pengadaan'    => $item['nama_pengadaan'],
                             'qty'               => $item['qty'],
                             'harga_satuan'      => $item['harga_satuan'],
                             'subtotal'          => $item['subtotal']
-                        ]);
+                        ];
+                        if (Schema::hasColumn('po_details', 'nama_pengadaan')) {
+                            $poDetailData['nama_pengadaan'] = $item['nama_pengadaan'];
+                        }
+
+                        PoDetail::create($poDetailData);
                     }
                 }
             });
@@ -363,7 +465,7 @@ class RabController extends Controller
                 'items.*.harga_satuan'  => 'required|numeric|min:0',
             ]);
 
-            DB::transaction(function () use ($validated, $rab) {
+            DB::transaction(function () use ($validated, $rab, $hasRabId) {
                 $totalPorsiKecil = $validated['qty_porsi_kecil'] * $validated['harga_porsi_kecil'];
                 $totalPorsiBesar = $validated['qty_porsi_besar'] * $validated['harga_porsi_besar'];
                 $totalPagu       = $totalPorsiKecil + $totalPorsiBesar;
@@ -377,21 +479,28 @@ class RabController extends Controller
 
                 $selisih = $totalPagu - $totalBelanja;
 
-                $rab->update([
-                    'tipe'               => 'bahan',
-                    'kategori_pengadaan' => 'Bahan Baku',
-                    'tanggal'            => $validated['tanggal'],
-                    'nama_menu'          => $validated['nama_menu'],
-                    'qty_porsi_kecil'    => $validated['qty_porsi_kecil'],
-                    'harga_porsi_kecil'  => $validated['harga_porsi_kecil'],
-                    'total_porsi_kecil'  => $totalPorsiKecil,
-                    'qty_porsi_besar'    => $validated['qty_porsi_besar'],
-                    'harga_porsi_besar'  => $validated['harga_porsi_besar'],
-                    'total_porsi_besar'  => $totalPorsiBesar,
-                    'total_pagu'         => $totalPagu,
-                    'total_belanja'      => $totalBelanja,
-                    'selisih'            => $selisih,
-                ]);
+                $rabData = [
+                    'tanggal'           => $validated['tanggal'],
+                    'nama_menu'         => $validated['nama_menu'],
+                    'qty_porsi_kecil'   => $validated['qty_porsi_kecil'],
+                    'harga_porsi_kecil' => $validated['harga_porsi_kecil'],
+                    'total_porsi_kecil' => $totalPorsiKecil,
+                    'qty_porsi_besar'   => $validated['qty_porsi_besar'],
+                    'harga_porsi_besar' => $validated['harga_porsi_besar'],
+                    'total_porsi_besar' => $totalPorsiBesar,
+                    'total_pagu'        => $totalPagu,
+                    'total_belanja'     => $totalBelanja,
+                    'selisih'           => $selisih,
+                ];
+
+                if (Schema::hasColumn('rabs', 'tipe')) {
+                    $rabData['tipe'] = 'bahan';
+                }
+                if (Schema::hasColumn('rabs', 'kategori_pengadaan')) {
+                    $rabData['kategori_pengadaan'] = 'Bahan Baku';
+                }
+
+                $rab->update($rabData);
 
                 $rab->details()->delete();
 
@@ -409,20 +518,27 @@ class RabController extends Controller
                     $itemsPerSupplier[$item['supplier_id']][] = $item;
                 }
 
-                PurchaseOrder::where('rab_id', $rab->id)->delete();
+                if ($hasRabId) {
+                    PurchaseOrder::where('rab_id', $rab->id)->delete();
+                }
 
                 foreach ($itemsPerSupplier as $supplierId => $items) {
                     $poGrandTotal = collect($items)->sum('subtotal');
                     $nomorPo = 'PO-RAB-' . date('ymd', strtotime($validated['tanggal'])) . '-S' . $supplierId . '-' . strtoupper(Str::random(3));
 
-                    $po = PurchaseOrder::create([
-                        'rab_id'         => $rab->id,
+                    $poData = [
                         'nomor_po'       => $nomorPo,
                         'tanggal_pesan'  => $validated['tanggal'],
                         'kategori_biaya' => 'Bahan Baku',
                         'grand_total'    => $poGrandTotal,
                         'status'         => 'draft'
-                    ]);
+                    ];
+
+                    if ($hasRabId) {
+                        $poData['rab_id'] = $rab->id;
+                    }
+
+                    $po = PurchaseOrder::create($poData);
 
                     foreach ($items as $item) {
                         PoDetail::create([
@@ -443,6 +559,7 @@ class RabController extends Controller
 
     public function destroy($id)
     {
+        $this->ensureSchemaUpdated();
         $rab = Rab::findOrFail($id);
         $rab->delete();
 
