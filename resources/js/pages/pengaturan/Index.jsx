@@ -80,7 +80,8 @@ export default function PengaturanIndex() {
         riwayat_masuk: { yayasan: false, pengawas: false, sppg: false, asisten: true, penerima: true },
         barang_keluar: { yayasan: false, pengawas: false, sppg: false, asisten: true, penerima: true },
         rekap_stok: { yayasan: false, pengawas: false, sppg: false, asisten: true, penerima: true },
-        laporan: { yayasan: true, pengawas: true, sppg: true, asisten: false, penerima: false },
+        rab: { yayasan: false, pengawas: true, sppg: true, asisten: true, penerima: false },
+        po: { yayasan: false, pengawas: true, sppg: true, asisten: true, penerima: false },
         berita_acara: { yayasan: false, pengawas: true, sppg: true, asisten: true, penerima: true }
     };
 
@@ -161,7 +162,8 @@ export default function PengaturanIndex() {
         { id: 'riwayat_masuk', label: 'Riwayat Masuk', icon: <FilePlus size={16} /> },
         { id: 'barang_keluar', label: 'Barang Keluar', icon: <FileOutput size={16} /> },
         { id: 'rekap_stok', label: 'Rekap Stok', icon: <FileSpreadsheet size={16} /> },
-        { id: 'laporan', label: 'Lap. Transaksi', icon: <FileText size={16} /> },
+        { id: 'rab', label: 'RAB', icon: <FileText size={16} /> },
+        { id: 'po', label: 'Nota PO / Purchase Order', icon: <FileText size={16} /> },
         { id: 'berita_acara', label: 'Berita Acara', icon: <FileSignature size={16} /> },
     ];
 

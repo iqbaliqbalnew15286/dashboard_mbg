@@ -83,9 +83,12 @@ export default function TransaksiIndex({ transactions, filters, kategori_biayas 
   };
 
   const handlePrintPo = (po) => {
+    const originalTitle = document.title;
+    document.title = ''; // Hapus title sementara agar header cetakan browser tidak memunculkan MBG Internal
     setPrintPo(po);
     setTimeout(() => {
       window.print();
+      document.title = originalTitle;
     }, 300);
   };
 
@@ -117,6 +120,19 @@ export default function TransaksiIndex({ transactions, filters, kategori_biayas 
 
   const totalHalamanIni = dataList.reduce((sum, p) => sum + (Number(p.grand_total) || 0), 0);
   const kotaPengaturan = pengaturanGlobal.kota || 'Bogor';
+
+  const defaultKonfigPO = { yayasan: false, pengawas: true, sppg: true, asisten: true, penerima: false };
+  const konfigCetakPo = pengaturanGlobal.konfigurasi_cetak?.po || defaultKonfigPO;
+
+  const listPejabat = [
+      { key: 'yayasan', jabatan: pengaturanGlobal.yayasan_jabatan || 'Kepala Yayasan / PIC', nama: pengaturanGlobal.yayasan_nama, nip: pengaturanGlobal.yayasan_nip },
+      { key: 'pengawas', jabatan: pengaturanGlobal.pengawas_jabatan || 'Pengawas Keuangan', nama: pengaturanGlobal.pengawas_nama, nip: pengaturanGlobal.pengawas_nip },
+      { key: 'sppg', jabatan: pengaturanGlobal.sppg_jabatan || 'Kepala SPPG', nama: pengaturanGlobal.sppg_nama, nip: pengaturanGlobal.sppg_nip },
+      { key: 'asisten', jabatan: pengaturanGlobal.asisten_jabatan || 'Asisten Lapangan', nama: pengaturanGlobal.asisten_nama, nip: pengaturanGlobal.asisten_nip },
+      { key: 'penerima', jabatan: pengaturanGlobal.penerima_jabatan || 'Penerima Barang', nama: pengaturanGlobal.penerima_nama, nip: pengaturanGlobal.penerima_nip },
+  ];
+
+  const pejabatTampilPo = listPejabat.filter(p => konfigCetakPo[p.key]);
 
   return (
     <div className="w-full pb-10 font-['Plus_Jakarta_Sans',sans-serif] space-y-6 print:bg-white print:p-0">
@@ -548,28 +564,26 @@ export default function TransaksiIndex({ transactions, filters, kategori_biayas 
                 <span className="text-base font-black text-slate-900">{formatRp(printPo.grand_total)}</span>
             </div>
 
-            {/* SECTION TANDA TANGAN */}
+            {/* SECTION TANDA TANGAN DINAMIS SESUAI PENGATURAN */}
             <div className="mt-12 text-sm">
                 <p className="mb-10 text-left font-bold">
                     {kotaPengaturan}, {formatTanggalLokal(printPo.tanggal_pesan)}
                 </p>
 
-                <div className="grid grid-cols-3 text-center font-bold uppercase gap-4" style={{ pageBreakInside: 'avoid' }}>
-                    <div>
-                        <p className="mb-20 tracking-wider">PENGAWAS KEUANGAN</p>
-                        <p className="underline font-black">{pengaturanGlobal.pengawas_nama || '(..................................)'}</p>
-                        {pengaturanGlobal.pengawas_nip && <p className="text-xs text-slate-500 font-normal">NIP. {pengaturanGlobal.pengawas_nip}</p>}
-                    </div>
-                    <div>
-                        <p className="mb-20 tracking-wider">KEPALA SPPG</p>
-                        <p className="underline font-black">{pengaturanGlobal.sppg_nama || '(..................................)'}</p>
-                        {pengaturanGlobal.sppg_nip && <p className="text-xs text-slate-500 font-normal">NIP. {pengaturanGlobal.sppg_nip}</p>}
-                    </div>
-                    <div>
-                        <p className="mb-20 tracking-wider">ASISTEN LAPANGAN</p>
-                        <p className="underline font-black">{pengaturanGlobal.asisten_nama || '(..................................)'}</p>
-                        {pengaturanGlobal.asisten_nip && <p className="text-xs text-slate-500 font-normal">NIP. {pengaturanGlobal.asisten_nip}</p>}
-                    </div>
+                <div className={`grid text-center font-bold uppercase gap-4 ${
+                    pejabatTampilPo.length === 1 ? 'grid-cols-1 max-w-xs mx-auto' :
+                    pejabatTampilPo.length === 2 ? 'grid-cols-2 max-w-lg mx-auto' :
+                    pejabatTampilPo.length === 3 ? 'grid-cols-3' :
+                    pejabatTampilPo.length === 4 ? 'grid-cols-4' :
+                    'grid-cols-5'
+                }`} style={{ pageBreakInside: 'avoid' }}>
+                    {pejabatTampilPo.map((pejabat) => (
+                        <div key={pejabat.key} className="text-center flex flex-col items-center justify-end">
+                            <p className="mb-20 tracking-wider text-xs">{pejabat.jabatan}</p>
+                            <p className="underline font-black text-xs">{pejabat.nama || '(..................................)'}</p>
+                            {pejabat.nip && <p className="text-[10px] text-slate-500 font-normal mt-0.5">NIP. {pejabat.nip}</p>}
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -579,16 +593,21 @@ export default function TransaksiIndex({ transactions, filters, kategori_biayas 
       {/* INJECT PRINT LAYOUT STYLE */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          @page { size: portrait; margin: 1.5cm; }
-          body { 
-              background: white !important; 
-              color: black !important;
+          @page { size: portrait; margin: 12mm 15mm; }
+          body * { 
+              visibility: hidden; 
+          }
+          .print\\:block, .print\\:block * { 
+              visibility: visible; 
+          }
+          .print\\:block { 
+              position: absolute; 
+              left: 0; 
+              top: 0; 
+              width: 100%; 
           }
           nav, header, footer, aside, .sidebar, .print\\:hidden { 
               display: none !important; 
-          }
-          .print\\:block { 
-              display: block !important; 
           }
         }
       `}} />

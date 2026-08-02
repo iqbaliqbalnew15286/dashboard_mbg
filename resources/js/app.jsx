@@ -22,7 +22,7 @@ for (const path in pages) {
 }
 
 createInertiaApp({
-    title: (title) => `${title} - MBG Internal`,
+    title: (title) => title ? title : 'Sistem Keuangan MBG',
     
     resolve: (name) => {
         // Normalisasi nama yang dipanggil controller menjadi huruf kecil juga
