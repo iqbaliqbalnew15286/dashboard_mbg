@@ -99,6 +99,7 @@ Route::middleware('auth')->group(function () {
     // ==========================================
     Route::get('/pengaturan', [PengaturanController::class, 'index'])->name('pengaturan.index');
     Route::post('/pengaturan', [PengaturanController::class, 'store'])->name('pengaturan.store');
+    Route::delete('/pengaturan/kop-surat', [PengaturanController::class, 'hapusKopSurat'])->name('pengaturan.hapus_kop');
     
     // Zona Berbahaya (Hapus Data & Backup)
     Route::post('/pengaturan/reset-uji', [PengaturanController::class, 'resetDataUji'])->name('pengaturan.reset');

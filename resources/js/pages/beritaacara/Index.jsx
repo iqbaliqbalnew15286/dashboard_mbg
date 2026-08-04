@@ -151,7 +151,7 @@ export default function BeritaAcaraIndex() {
             {pengaturanGlobal.kop_surat && (
                 <div className="w-full mb-4 text-center flex justify-center">
                     {pengaturanGlobal.kop_surat.toLowerCase().endsWith('.pdf') ? (
-                        <p className="text-xs text-red-500 italic">Preview PDF tidak didukung saat pencetakan, gunakan gambar (JPG/PNG).</p>
+                        <p className="text-xs text-red-500 italic print:hidden">Preview PDF tidak didukung saat pencetakan, gunakan gambar (JPG/PNG).</p>
                     ) : (
                         <img src={`/storage/${pengaturanGlobal.kop_surat}`} alt="Kop Surat" className="w-full h-auto max-h-[160px] object-contain" />
                     )}
@@ -279,7 +279,7 @@ export default function BeritaAcaraIndex() {
         {/* TABEL DATA REKAP */}
         <div className="bg-white md:rounded-[2rem] md:border border-slate-200/60 shadow-sm overflow-hidden print:shadow-none print:border-none print:rounded-none mt-4 mx-4 md:mx-0">
           <div className="overflow-x-auto print:overflow-visible">
-            <table className="w-full text-left border-collapse table-auto print:border print:border-black print:text-xs">
+            <table className="w-full text-left border-collapse table-auto print:table-fixed print:w-full print:border print:border-black print:text-[10px]">
               
               {/* THEAD Layar */}
               <thead className="print:hidden bg-slate-50 text-[10px] uppercase font-black text-slate-400 tracking-widest border-b border-slate-100">
@@ -297,17 +297,17 @@ export default function BeritaAcaraIndex() {
 
               {/* THEAD Cetak */}
               <thead 
-                className="hidden print:table-header-group text-[10px] font-black text-black uppercase tracking-widest border-b border-black"
-                style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', backgroundColor: '#b4c6e7' }}
+                className="hidden print:table-header-group text-[9.5px] font-black text-black uppercase tracking-wider border-b border-black"
+                style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', backgroundColor: '#e2e8f0' }}
               >
                 <tr>
-                  <th className="px-4 py-3 border border-black text-center">NO</th>
-                  <th className="px-4 py-3 border border-black text-center">TGL BA</th>
-                  <th className="px-4 py-3 border border-black text-center">NOMOR BA</th>
-                  <th className="px-4 py-3 border border-black text-center">JENIS BERITA ACARA</th>
-                  <th className="px-4 py-3 border border-black text-center">NO. PO REF</th>
-                  <th className="px-4 py-3 border border-black text-center">KETERANGAN</th>
-                  <th className="px-4 py-3 border border-black text-center">NOMINAL (Rp)</th>
+                  <th className="px-1 py-2.5 border border-black text-center" style={{ width: '4%' }}>NO</th>
+                  <th className="px-1 py-2.5 border border-black text-center" style={{ width: '12%' }}>TGL BA</th>
+                  <th className="px-1 py-2.5 border border-black text-center" style={{ width: '18%' }}>NOMOR BA</th>
+                  <th className="px-1 py-2.5 border border-black text-center" style={{ width: '20%' }}>JENIS BERITA ACARA</th>
+                  <th className="px-1 py-2.5 border border-black text-center" style={{ width: '16%' }}>NO. PO REF</th>
+                  <th className="px-1 py-2.5 border border-black text-center" style={{ width: '16%' }}>KETERANGAN</th>
+                  <th className="px-1 py-2.5 border border-black text-center" style={{ width: '14%' }}>NOMINAL (Rp)</th>
                 </tr>
               </thead>
 
@@ -325,13 +325,13 @@ export default function BeritaAcaraIndex() {
                     const jenis = ba.jenis_ba || 'SURAT PERINTAH MEMBAYAR';
 
                     return (
-                      <tr key={ba.id} className="hover:bg-slate-50/80 transition-colors print:text-black print:border print:border-black">
-                        <td className="px-6 py-4 font-bold text-slate-400 text-center print:border print:border-black print:text-black print:text-[11px]">{idx + 1}</td>
-                        <td className="px-4 py-4 font-bold text-slate-600 whitespace-nowrap print:border print:border-black print:text-black print:text-[11px]">{formatTanggalLokal(ba.tanggal_ba)}</td>
-                        <td className="px-4 py-4 font-black text-blue-600 break-words print:border print:border-black print:text-black print:text-[11px]">{ba.nomor_ba}</td>
+                      <tr key={ba.id} className="hover:bg-slate-50/80 transition-colors print:text-black print:border print:border-black" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                        <td className="px-1 py-2 font-bold text-slate-400 text-center print:border print:border-black print:text-black print:text-[10px] whitespace-nowrap">{idx + 1}</td>
+                        <td className="px-1 py-2 font-bold text-slate-600 whitespace-nowrap text-center print:border print:border-black print:text-black print:text-[10px]">{formatTanggalLokal(ba.tanggal_ba)}</td>
+                        <td className="px-1 py-2 font-black text-blue-600 text-center break-all print:border print:border-black print:text-black print:text-[10px]">{ba.nomor_ba}</td>
                         
-                        <td className="px-4 py-4 print:border print:border-black print:text-black print:text-[11px]">
-                          <span className={`inline-block px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                        <td className="px-1.5 py-2 print:border print:border-black print:text-black print:text-[10px] print:bg-transparent">
+                          <span className={`inline-block px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider print:p-0 print:border-none print:bg-transparent print:text-black print:font-bold ${
                             jenis === 'SURAT PERINTAH MEMBAYAR'
                             ? 'bg-blue-50 text-blue-700 border border-blue-100'
                             : jenis === 'BERITA ACARA PENGEMBALIAN DANA'
@@ -344,10 +344,10 @@ export default function BeritaAcaraIndex() {
                           </span>
                         </td>
 
-                        <td className="px-4 py-4 font-bold text-slate-700 break-words print:border print:border-black print:text-black print:text-[11px]">{ba.purchase_order?.nomor_po || '-'}</td>
-                        <td className="px-4 py-4 font-medium text-slate-500 leading-tight print:border print:border-black print:text-black print:text-[11px]">{ba.keterangan}</td>
+                        <td className="px-1 py-2 font-bold text-slate-700 text-center break-all print:border print:border-black print:text-black print:text-[10px]">{ba.purchase_order?.nomor_po || '-'}</td>
+                        <td className="px-1 py-2 font-medium text-slate-500 leading-tight print:border print:border-black print:text-black print:text-[10px]">{ba.keterangan || '-'}</td>
                         
-                        <td className="px-6 py-4 font-black text-slate-800 text-right whitespace-nowrap bg-slate-50/30 print:border print:border-black print:bg-transparent print:text-black print:text-[12px]">{formatRp(ba.purchase_order?.grand_total)}</td>
+                        <td className="px-1.5 py-2 font-black text-slate-800 text-right whitespace-nowrap bg-slate-50/30 print:border print:border-black print:bg-transparent print:text-black print:text-[10px]">{formatRp(ba.purchase_order?.grand_total)}</td>
                         
                         {/* Kolom Aksi hanya di layar */}
                         <td className="px-6 py-4 print:hidden">
@@ -380,12 +380,12 @@ export default function BeritaAcaraIndex() {
                       <td></td>
                     </tr>
                   </tfoot>
-                  <tfoot className="hidden print:table-row-group text-black font-black">
+                  <tfoot className="hidden print:table-row-group text-black font-black" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                     <tr>
-                      <td colSpan={6} className="px-4 py-3 text-right text-[11px] uppercase tracking-widest border border-black">
+                      <td colSpan={6} className="px-2 py-2.5 text-right text-[10px] uppercase tracking-wider border border-black font-bold">
                         TOTAL KESELURUHAN BA
                       </td>
-                      <td className="px-4 py-3 text-right text-[12px] border border-black">
+                      <td className="px-1.5 py-2.5 text-right text-[10px] border border-black font-black whitespace-nowrap">
                         {formatRp(totalNominal)}
                       </td>
                     </tr>
@@ -398,14 +398,17 @@ export default function BeritaAcaraIndex() {
 
         {/* Tanda Tangan Khusus Cetak Tabel Rekap */}
         {filteredBas.length > 0 && (
-          <div className="hidden print:flex flex-wrap justify-around items-end mt-12 w-full gap-y-12" style={{ pageBreakInside: 'avoid' }}>
+          <div className={`hidden print:grid text-center font-bold uppercase mt-12 pt-6 w-full ${
+              pejabatTampil.length === 1 ? 'grid-cols-1 max-w-xs mx-auto gap-4' :
+              pejabatTampil.length === 2 ? 'grid-cols-2 max-w-lg mx-auto gap-8' :
+              pejabatTampil.length === 3 ? 'grid-cols-3 max-w-xl mx-auto gap-6' :
+              pejabatTampil.length === 4 ? 'grid-cols-2 max-w-2xl mx-auto gap-x-20 gap-y-12' :
+              'grid-cols-3 max-w-3xl mx-auto gap-x-8 gap-y-12'
+          }`} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
               {pejabatTampil.map((pejabat) => (
-                  <div key={pejabat.key} className="text-center flex flex-col items-center justify-end w-48">
-                      <p className="text-[12px] font-bold uppercase tracking-wider mb-20">{pejabat.jabatan}</p>
-                      <div className="text-center">
-                          <p className="font-bold text-[12px] uppercase underline underline-offset-4 mb-1">{pejabat.nama || '(..................................)'}</p>
-                          {pejabat.nip && <p className="text-[10px]">NIP. {pejabat.nip}</p>}
-                      </div>
+                  <div key={pejabat.key} className="text-center flex flex-col items-center justify-end font-['Times_New_Roman',serif]">
+                      <p className="mb-20 tracking-wider text-xs font-bold text-black">{pejabat.jabatan}</p>
+                      <p className="font-black text-xs text-black">{pejabat.nama || '(..................................)'}</p>
                   </div>
               ))}
           </div>
@@ -575,20 +578,17 @@ export default function BeritaAcaraIndex() {
                   </table>
 
                   {/* TANDA TANGAN DINAMIS INDIVIDUAL BA */}
-                  <div className="flex flex-wrap justify-around items-end mt-12 w-full gap-y-12" style={{ pageBreakInside: 'avoid' }}>
+                  <div className={`grid text-center font-bold uppercase mt-12 pt-6 w-full ${
+                      pejabatTampil.length === 1 ? 'grid-cols-1 max-w-xs mx-auto gap-4' :
+                      pejabatTampil.length === 2 ? 'grid-cols-2 max-w-lg mx-auto gap-8' :
+                      pejabatTampil.length === 3 ? 'grid-cols-3 max-w-xl mx-auto gap-6' :
+                      pejabatTampil.length === 4 ? 'grid-cols-2 max-w-2xl mx-auto gap-x-20 gap-y-12' :
+                      'grid-cols-3 max-w-3xl mx-auto gap-x-8 gap-y-12'
+                  }`} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                       {pejabatTampil.map((pejabat) => (
-                          <div key={pejabat.key} className="text-center flex flex-col items-center justify-end w-48 font-['Times_New_Roman',Times,serif]">
-                              <p className="text-[14px] font-bold uppercase tracking-wider mb-20">
-                                  {pejabat.jabatan}
-                              </p>
-                              <div className="text-center">
-                                  <p className="font-bold text-[14px] uppercase underline underline-offset-4 mb-1">
-                                      {pejabat.nama || '(..................................)'}
-                                  </p>
-                                  {pejabat.nip && (
-                                      <p className="text-[12px]">NIP. {pejabat.nip}</p>
-                                  )}
-                              </div>
+                          <div key={pejabat.key} className="text-center flex flex-col items-center justify-end font-['Times_New_Roman',Times,serif]">
+                              <p className="mb-20 tracking-wider text-xs font-bold text-black">{pejabat.jabatan}</p>
+                              <p className="font-black text-xs text-black">{pejabat.nama || '(..................................)'}</p>
                           </div>
                       ))}
                   </div>
@@ -606,6 +606,25 @@ export default function BeritaAcaraIndex() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* INJECT PRINT LAYOUT STYLE UNTUK BERITA ACARA */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          @page { size: portrait; margin: 0 !important; }
+          body {
+            background: white !important;
+            padding: 15mm;
+            box-sizing: border-box;
+            font-family: 'Times New Roman', Times, serif !important;
+          }
+          nav, header, footer, aside, .sidebar, .print\\:hidden { 
+            display: none !important; 
+          }
+          .print\\:grid { display: grid !important; }
+          .print\\:text-black { color: #000000 !important; }
+          .print\\:bg-transparent { background-color: transparent !important; }
+        }
+      `}} />
 
     </div>
   );

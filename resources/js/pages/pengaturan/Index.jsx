@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useForm, usePage, router } from '@inertiajs/react';
-import { Save, AlertTriangle, FileText, Info, FileSpreadsheet, FileOutput, FilePlus, FileSignature, CheckSquare } from 'lucide-react';
+import { Save, AlertTriangle, FileText, Info, FileSpreadsheet, FileOutput, FilePlus, FileSignature, CheckSquare, Trash2 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 // KOMPONEN DIPISAH KE LUAR AGAR TIDAK KEHILANGAN FOKUS SAAT MENGETIK
@@ -157,6 +157,16 @@ export default function PengaturanIndex() {
         }
     };
 
+    const handleHapusKopSurat = () => {
+        if (confirm('Yakin ingin menghapus Kop Surat yang tersimpan?')) {
+            router.delete('/pengaturan/kop-surat', {
+                preserveScroll: true,
+                onSuccess: () => toast.success('Kop surat berhasil dihapus!'),
+                onError: () => toast.error('Gagal menghapus kop surat.')
+            });
+        }
+    };
+
     // Array Menu Tab
     const tabs = [
         { id: 'riwayat_masuk', label: 'Riwayat Masuk', icon: <FilePlus size={16} /> },
@@ -202,8 +212,17 @@ export default function PengaturanIndex() {
                         </div>
 
                         {pengaturan.kop_surat && (
-                            <div className="mt-6 p-8 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50 flex flex-col items-center justify-center">
-                                <span className="text-[10px] font-black text-slate-400 tracking-widest mb-6 uppercase bg-white px-4 py-1.5 rounded-full shadow-sm">Preview Kop Surat</span>
+                            <div className="mt-6 p-8 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50 flex flex-col items-center justify-center relative">
+                                <div className="w-full flex flex-col sm:flex-row justify-between items-center gap-3 mb-6">
+                                    <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase bg-white px-4 py-1.5 rounded-full shadow-sm">Preview Kop Surat</span>
+                                    <button 
+                                        type="button" 
+                                        onClick={handleHapusKopSurat}
+                                        className="px-4 py-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm shrink-0"
+                                    >
+                                        <Trash2 size={14} /> Hapus Kop Surat
+                                    </button>
+                                </div>
                                 <div className="w-full max-w-4xl bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-center">
                                     {pengaturan.kop_surat.toLowerCase().endsWith('.pdf') ? (
                                         <div className="w-full relative overflow-hidden h-[200px] md:h-[250px]"><iframe src={`/storage/${pengaturan.kop_surat}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`} className="absolute top-0 left-0 w-full h-[1000px] border-0 pointer-events-none" scrolling="no"/></div>

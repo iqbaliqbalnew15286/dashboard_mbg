@@ -58,6 +58,20 @@ class PengaturanController extends Controller
         return back()->with('success', 'Format Cetakan & Konfigurasi Tanda Tangan berhasil disimpan!');
     }
 
+    public function hapusKopSurat()
+    {
+        $pengaturan = Pengaturan::first();
+        if ($pengaturan && $pengaturan->kop_surat) {
+            if (Storage::disk('public')->exists($pengaturan->kop_surat)) {
+                Storage::disk('public')->delete($pengaturan->kop_surat);
+            }
+            $pengaturan->kop_surat = null;
+            $pengaturan->save();
+        }
+
+        return back()->with('success', 'Kop surat berhasil dihapus!');
+    }
+
     public function backupDanReset()
     {
         try {

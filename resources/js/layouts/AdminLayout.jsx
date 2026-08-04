@@ -72,7 +72,7 @@ export default function AdminLayout({ children }) {
           relative ${isSidebarOpen ? "w-[280px]" : "w-[90px]"}
           transition-all duration-500 ease-in-out shrink-0 flex flex-col h-full
           bg-gradient-to-b from-slate-900 via-slate-800 to-zinc-900
-          shadow-xl z-20
+          shadow-xl z-20 print:hidden
         `}
       >
         <div className="absolute top-0 left-0 w-full h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
@@ -188,9 +188,9 @@ export default function AdminLayout({ children }) {
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 flex flex-col overflow-hidden relative z-10 bg-slate-50">
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <div className="max-w-7xl mx-auto h-full">
+      <main className="flex-1 flex flex-col overflow-hidden relative z-10 bg-slate-50 print:bg-white print:overflow-visible print:p-0">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] print:p-0 print:overflow-visible">
+          <div className="max-w-7xl mx-auto h-full print:max-w-none print:w-full">
             {children}
           </div>
         </div>
