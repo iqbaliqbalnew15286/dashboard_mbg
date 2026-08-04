@@ -365,8 +365,7 @@ export default function ListPoIndex() {
                             {pejabatTampilPo.map((pejabat) => (
                                 <div key={pejabat.key} className="text-center flex flex-col items-center justify-end">
                                     <p className="mb-20 tracking-wider text-xs">{pejabat.jabatan}</p>
-                                    <p className="underline font-black text-xs">{pejabat.nama || '(..................................)'}</p>
-                                    {pejabat.nip && <p className="text-[10px] text-slate-500 font-normal mt-0.5">NIP. {pejabat.nip}</p>}
+                                    <p className="font-black text-xs">{pejabat.nama || '(..................................)'}</p>
                                 </div>
                             ))}
                         </div>
@@ -378,7 +377,10 @@ export default function ListPoIndex() {
             {/* INJECT PRINT LAYOUT STYLE */}
             <style dangerouslySetInnerHTML={{__html: `
                 @media print {
-                    @page { size: portrait; margin: 12mm 15mm; }
+                    @page { size: portrait; margin: 0 !important; }
+                    body {
+                        background: white !important;
+                    }
                     body * { 
                         visibility: hidden; 
                     }
@@ -390,6 +392,8 @@ export default function ListPoIndex() {
                         left: 0; 
                         top: 0; 
                         width: 100%; 
+                        padding: 15mm 15mm 15mm 15mm;
+                        box-sizing: border-box;
                     }
                     nav, header, footer, aside, .sidebar, .print\\:hidden { 
                         display: none !important; 

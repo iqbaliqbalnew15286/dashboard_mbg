@@ -520,11 +520,12 @@ export default function BeritaAcaraIndex() {
                   {/* CSS KHUSUS CETAK INDIVIDUAL BA */}
                   <style dangerouslySetInnerHTML={{__html: `
                     @media print {
+                      @page { size: portrait; margin: 0 !important; }
+                      body { background: white !important; }
                       body * { visibility: hidden; }
                       .print\\:bg-white, .print\\:bg-white * { visibility: visible; }
-                      .print\\:bg-white { position: absolute; left: 0; top: 0; width: 100%; overflow: visible !important; }
+                      .print\\:bg-white { position: absolute; left: 0; top: 0; width: 100%; overflow: visible !important; padding: 1.5cm; box-sizing: border-box; }
                       .print\\:hidden { display: none !important; }
-                      @page { margin: 1.5cm; size: portrait; }
                     }
                     .judul-ba { text-align: center; font-weight: bold; margin-top: 20px; font-size: 16px; font-family: 'Times New Roman', Times, serif; text-transform: uppercase; }
                     .nomor-ba { text-align: center; margin-bottom: 30px; font-size: 15px; font-family: 'Times New Roman', Times, serif;}

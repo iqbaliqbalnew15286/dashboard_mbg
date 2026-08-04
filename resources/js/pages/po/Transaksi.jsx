@@ -265,7 +265,7 @@ export default function TransaksiIndex({ transactions, filters, kategori_biayas 
               ) : (
                 dataList.map((p, idx) => {
                   const supplierObj = p.details && p.details[0] ? p.details[0].supplier : null;
-                  const supplierName = supplierObj ? supplierObj.nama_perusahaan : (p.details && p.details[0]?.nama_pengadaan || '-');
+                  const supplierName = supplierObj ? supplierObj.nama_perusahaan : (p.supplier?.nama_perusahaan || p.nama_supplier || (p.details && p.details[0]?.nama_pengadaan) || '-');
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors align-middle">
@@ -303,7 +303,7 @@ export default function TransaksiIndex({ transactions, filters, kategori_biayas 
                           </button>
                           
                           <Link 
-                            href={p.rab_id ? `/rab/${p.rab_id}/edit` : `/purchase-orders/${p.id}/edit`}
+                            href={p.rab_id ? `/rab/${p.rab_id}/edit` : `/rab`}
                             className="px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-600 hover:text-white border border-amber-200 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 shadow-sm shrink-0"
                             title="Revisi Transaksi langsung via RAB Pusat"
                           >
@@ -580,8 +580,7 @@ export default function TransaksiIndex({ transactions, filters, kategori_biayas 
                     {pejabatTampilPo.map((pejabat) => (
                         <div key={pejabat.key} className="text-center flex flex-col items-center justify-end">
                             <p className="mb-20 tracking-wider text-xs">{pejabat.jabatan}</p>
-                            <p className="underline font-black text-xs">{pejabat.nama || '(..................................)'}</p>
-                            {pejabat.nip && <p className="text-[10px] text-slate-500 font-normal mt-0.5">NIP. {pejabat.nip}</p>}
+                            <p className="font-black text-xs">{pejabat.nama || '(..................................)'}</p>
                         </div>
                     ))}
                 </div>
@@ -593,7 +592,10 @@ export default function TransaksiIndex({ transactions, filters, kategori_biayas 
       {/* INJECT PRINT LAYOUT STYLE */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          @page { size: portrait; margin: 12mm 15mm; }
+          @page { size: portrait; margin: 0 !important; }
+          body {
+              background: white !important;
+          }
           body * { 
               visibility: hidden; 
           }
@@ -605,6 +607,8 @@ export default function TransaksiIndex({ transactions, filters, kategori_biayas 
               left: 0; 
               top: 0; 
               width: 100%; 
+              padding: 15mm 15mm 15mm 15mm;
+              box-sizing: border-box;
           }
           nav, header, footer, aside, .sidebar, .print\\:hidden { 
               display: none !important; 

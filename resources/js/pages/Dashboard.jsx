@@ -243,7 +243,7 @@ export default function Dashboard({ stats, trends, recentPos, criticalItems }) {
                                     return (
                                         <tr key={i} className="hover:bg-slate-50/80 transition-colors">
                                             <td className="px-8 py-4 font-black text-blue-600 hover:underline">
-                                                <Link href={`/purchase-orders/${act.id || ''}/edit`}>{act.nomor_po}</Link>
+                                                <Link href={act.rab_id ? `/rab/${act.rab_id}/edit` : `/rab`}>{act.nomor_po}</Link>
                                             </td>
                                             <td className="px-6 py-4 font-bold text-slate-700">{supplierName}</td>
                                             <td className="px-6 py-4 text-slate-500 font-bold">{act.tanggal_pesan}</td>
